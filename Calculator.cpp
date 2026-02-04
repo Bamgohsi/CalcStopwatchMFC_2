@@ -61,8 +61,9 @@ CString Calculator::FormatNumber(double v) const
 {
     if (std::fabs(v) < 1e-15) v = 0.0;
 
-    double nearestInt = std::round(v);
-    if (std::fabs(v - nearestInt) <= 1e-10)
+    const double scale = (std::fabs(v) < 1.0) ? 1.0 : std::fabs(v);
+    const double nearestInt = std::round(v);
+    if (std::fabs(v - nearestInt) <= 1e-12 * scale)
         v = nearestInt;
 
     CString s;
@@ -71,6 +72,7 @@ CString Calculator::FormatNumber(double v) const
     if (s == _T("-0")) s = _T("0");
     return s;
 }
+
 
 
 void Calculator::SetValue(double v)
@@ -390,14 +392,19 @@ void Calculator::Percent()
 
     if (m_pendingOp == Op::None)
     {
-        SetValue(0.0);
-        m_bufo = _T("");
-        m_newEntry = true;
+        const double v = GetValue();
+        const double rhs = v / 100.0;
+
+        m_bufo = FormatNumber(v) + _T(" %");
+        SetValue(rhs);
+
+        m_newEntry = false;
         m_afterPercent = true;
+        m_afterUnary = false;
         return;
     }
 
-    double entry = m_newEntry ? 0.0 : GetValue();
+    const double entry = m_newEntry ? 0.0 : GetValue();
 
     double rhs = 0.0;
     if (m_pendingOp == Op::Add || m_pendingOp == Op::Sub)
@@ -405,33 +412,14 @@ void Calculator::Percent()
     else
         rhs = entry / 100.0;
 
-    bool err = false;
-    double left = m_acc;
-    double res = ApplyBinary(m_pendingOp, left, rhs, err);
-    if (err)
-    {
-        m_error = true;
-        m_buf = _T("Error");
-        m_bufo = _T("");
-        m_pendingOp = Op::None;
-        m_lastOp = Op::None;
-        m_newEntry = true;
-        return;
-    }
+    m_bufo = FormatNumber(m_acc) + _T(" ") + OpSymbol(m_pendingOp) + _T(" ") + FormatNumber(rhs);
+    SetValue(rhs);
 
-    m_bufo = FormatNumber(left) + _T(" ") + OpSymbol(m_pendingOp)
-        + _T(" ") + FormatNumber(rhs) + _T(" =");
-
-    SetValue(res);
-
-    m_acc = res;
-    m_lastOp = m_pendingOp;
-    m_lastRhs = rhs;
-    m_pendingOp = Op::None;
-
-    m_newEntry = true;
+    m_newEntry = false;
     m_afterPercent = true;
+    m_afterUnary = false;
 }
+
 
 void Calculator::ClearEntry()
 {
