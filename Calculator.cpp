@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "Calculator.h"
 #include <cmath>
+#include <tchar.h>
 
 // ge: 오류 표기용 문자열
 static const CString kErrDivZero = _T("0으로 나눌 수 없습니다");
@@ -39,6 +40,13 @@ void Calculator::Execute(const Command& cmd)
     }
 }
 
+// ge: '% 반복' 기준값(base)을 무효화
+void Calculator::InvalidatePercentBase()
+{
+    m_percentBase = 0.0;
+    m_percentBaseValid = false;
+}
+
 // ge: 모든 상태를 초기화 (C 버튼)
 void Calculator::Clear()
 {
@@ -55,9 +63,7 @@ void Calculator::Clear()
     m_afterPercent = false;
     m_afterUnary = false;
 
-    // ge: '=' 직후 퍼센트 반복 기준 초기화
-    m_percentBase = 0.0;
-    m_percentBaseValid = false;
+    InvalidatePercentBase(); // ge: '=' 직후 퍼센트 반복 기준 초기화
 }
 
 // ge: 에러 메시지 설정 + 상태를 안전하게 정리
@@ -66,15 +72,15 @@ void Calculator::SetError(const CString& msg)
     m_error = true;
     m_buf = msg;
     m_bufo = _T("");
+
     m_pendingOp = Op::None;
     m_lastOp = Op::None;
+
     m_newEntry = true;
     m_afterPercent = false;
     m_afterUnary = false;
 
-    // ge: 에러 발생 시 퍼센트 반복 기준도 무효화
-    m_percentBase = 0.0;
-    m_percentBaseValid = false;
+    InvalidatePercentBase(); // ge: 에러 발생 시 퍼센트 반복 기준도 무효화
 }
 
 // ge: 현재 m_buf 문자열을 실수(double)로 변환하여 반환
@@ -107,46 +113,83 @@ void Calculator::SetValue(double v)
     m_buf = FormatNumber(v);
 }
 
+// ge: 숫자 문자열을 히스토리/표시용으로 정규화(0.00000 -> 0)
+CString Calculator::NormalizeNumericText(const CString& rawText, bool keepTrailingDot) const
+{
+    CString t = rawText;
+    t.Trim();
+
+    if (t.IsEmpty()) return _T("0");
+
+    // ge: "2." 같은 입력은 표현 유지 옵션이 켜져 있으면 그대로 둠
+    if (keepTrailingDot && t.Right(1) == _T(".")) return t;
+
+    // ge: 숫자 형태가 아니면(에러 문자열 등) 그대로 사용
+    bool hasDigit = false;
+    for (int i = 0; i < t.GetLength(); ++i)
+    {
+        const TCHAR ch = t[i];
+        if (_istdigit(ch)) { hasDigit = true; continue; }
+        if (ch == _T('.') || ch == _T('-') || ch == _T('+') || ch == _T('e') || ch == _T('E')) continue;
+        return t;
+    }
+    if (!hasDigit) return t;
+
+    return FormatNumber(_tstof(t));
+}
+
+// ge: 사용자 입력이 숫자 형태면 표시창도 정규화(0.00000 -> 0)
+void Calculator::NormalizeDisplayIfPossible()
+{
+    // ge: 새 입력 상태면 이미 0/정리된 상태이므로 건드리지 않음
+    if (m_newEntry) return;
+
+    // ge: 단항/% 결과 표시 중에는 표준 계산기처럼 표시 유지(원하면 여기서도 정규화 가능)
+    if (m_afterUnary || m_afterPercent) return;
+
+    m_buf = NormalizeNumericText(m_buf, true);
+}
+
+// ge: 특수 연산(%/단항) 직후 새 입력 시작 공통 처리
+bool Calculator::BeginNewEntryFromSpecial(const CString& newText)
+{
+    if (!(m_afterPercent || m_afterUnary)) return false;
+
+    if (m_pendingOp == Op::None) History_Reset();
+
+    InvalidatePercentBase(); // ge: 새 입력 시작이므로 '% 반복 기준'은 끊는다
+
+    m_buf = newText;
+    m_newEntry = false;
+    m_afterPercent = false;
+    m_afterUnary = false;
+    return true;
+}
+
 // ge: 숫자 입력 처리
 void Calculator::AppendDigit(int d)
 {
     if (d < 0 || d > 9) return;
     if (m_error) return;
 
-    // ge: 특수 연산 직후에 숫자를 누르면 기존 식을 무시하고 새로 시작
-    if (m_afterPercent || m_afterUnary)
-    {
-        if (m_pendingOp == Op::None) History_Reset();
+    CString first;
+    first.Format(_T("%d"), d);
+    if (BeginNewEntryFromSpecial(first)) return;
 
-        // ge: 새 입력 시작이므로 '='직후 퍼센트 반복 기준은 끊는다
-        m_percentBaseValid = false;
-        m_percentBase = 0.0;
-
-        m_buf.Format(_T("%d"), d);
-        m_newEntry = false;
-        m_afterPercent = false;
-        m_afterUnary = false;
-        return;
-    }
-
-    // ge: 연산자 누른 직후 등, 새로 입력해야 하는 상태일 때
     if (m_newEntry)
     {
-        m_buf.Format(_T("%d"), d);
+        m_buf = first;
         m_newEntry = false;
         return;
     }
 
-    // ge: 0만 있으면 교체, 아니면 뒤에 붙임
     if (m_buf == _T("0"))
     {
-        m_buf.Format(_T("%d"), d);
+        m_buf = first;
         return;
     }
 
-    CString t;
-    t.Format(_T("%d"), d);
-    m_buf += t;
+    m_buf += first;
 }
 
 // ge: 소수점 입력 처리
@@ -154,23 +197,8 @@ void Calculator::AppendDecimal()
 {
     if (m_error) return;
 
-    // ge: 결과값 나온 직후 소수점 누르면 "0."으로 시작
-    if (m_afterPercent || m_afterUnary)
-    {
-        if (m_pendingOp == Op::None) History_Reset();
+    if (BeginNewEntryFromSpecial(_T("0."))) return;
 
-        // ge: 새 입력 시작이므로 '='직후 퍼센트 반복 기준은 끊는다
-        m_percentBaseValid = false;
-        m_percentBase = 0.0;
-
-        m_buf = _T("0.");
-        m_newEntry = false;
-        m_afterPercent = false;
-        m_afterUnary = false;
-        return;
-    }
-
-    // ge: 새 입력이면 "0."부터 시작
     if (m_newEntry)
     {
         m_buf = _T("0.");
@@ -178,7 +206,6 @@ void Calculator::AppendDecimal()
         return;
     }
 
-    // ge: 이미 소수점이 있으면 무시
     if (m_buf.Find(_T('.')) >= 0) return;
     m_buf += _T(".");
 }
@@ -191,7 +218,6 @@ void Calculator::Backspace()
     // ge: [중요] 계산 결과값(루트, % 등)이 떠있는 상태에선 백스페이스가 안 먹히도록 함 (표준 계산기 동작)
     if (m_afterUnary || m_afterPercent) return;
 
-    // ge: 새 입력 상태면 아무 것도 지우지 않음
     if (m_newEntry) return;
 
     int len = m_buf.GetLength();
@@ -227,8 +253,8 @@ CString Calculator::OpSymbol(Op op) const
     {
     case Op::Add: return _T("+");
     case Op::Sub: return _T("-");
-    case Op::Mul: return _T("\u00D7"); // ge: 곱하기(×) 유니코드
-    case Op::Div: return _T("\u00F7"); // ge: 나누기(÷) 유니코드
+    case Op::Mul: return _T("\u00D7"); // ge: 곱하기(×)
+    case Op::Div: return _T("\u00F7"); // ge: 나누기(÷)
     default: return _T("");
     }
 }
@@ -243,7 +269,7 @@ double Calculator::ApplyBinary(Op op, double a, double b, bool& err) const
     case Op::Sub: return a - b;
     case Op::Mul: return a * b;
     case Op::Div:
-        if (b == 0.0) { err = true; return 0.0; } // ge: 0으로 나누기 방지
+        if (b == 0.0) { err = true; return 0.0; }
         return a / b;
     default:
         return b;
@@ -303,22 +329,10 @@ void Calculator::History_ClearIfJustEvaluated()
         History_Reset();
 }
 
-// ge: "lhs op" 형태로 대기 상태 히스토리 생성
-void Calculator::History_SetPending(double lhs, Op op)
-{
-    History_SetPendingText(FormatNumber(lhs), op);
-}
-
 // ge: "lhsText op" 형태로 대기 상태 히스토리 생성(텍스트 기반)
 void Calculator::History_SetPendingText(const CString& lhsText, Op op)
 {
     m_bufo = lhsText + _T(" ") + OpSymbol(op);
-}
-
-// ge: "lhs op rhs" 또는 "lhs op rhs =" 형태로 히스토리 생성(숫자 기반)
-void Calculator::History_SetBinary(double lhs, Op op, const CString& rhsText, bool withEqual)
-{
-    History_SetBinaryText(FormatNumber(lhs), op, rhsText, withEqual);
 }
 
 // ge: "lhsText op rhsText" 또는 "lhsText op rhsText =" 형태로 히스토리 생성(텍스트 기반)
@@ -356,11 +370,12 @@ void Calculator::SetOperator(Op op)
 {
     if (m_error) return;
 
-    // ge: 연산자 입력은 새로운 식을 시작하는 흐름이므로 '% 반복 기준'은 끊는다
-    m_percentBaseValid = false;
-    m_percentBase = 0.0;
+    // ge: [수정] 0.00000 입력 후 + 눌렀을 때 표시창도 0으로 정규화
+    NormalizeDisplayIfPossible();
 
+    InvalidatePercentBase(); // ge: 연산자 입력은 새로운 식을 시작하는 흐름이므로 '% 반복 기준'은 끊는다
     History_ClearIfJustEvaluated();
+
     const CString opTok = OpSymbol(op);
     const double entry = GetValue();
 
@@ -370,10 +385,11 @@ void Calculator::SetOperator(Op op)
         m_acc = entry;
         m_pendingOp = op;
 
+        // ge: [수정] 히스토리는 항상 정규화(0.00000 -> 0)
         if (!m_bufo.IsEmpty() && m_afterUnary)
             History_SetPendingText(m_bufo, op);
         else
-            History_SetPendingText(m_buf, op);
+            History_SetPendingText(NormalizeNumericText(m_buf, true), op);
 
         m_newEntry = true;
         return;
@@ -383,12 +399,12 @@ void Calculator::SetOperator(Op op)
     if (m_newEntry)
     {
         m_pendingOp = op;
-        if (m_bufo.IsEmpty()) History_SetPending(m_acc, op);
+        if (m_bufo.IsEmpty()) History_SetPendingText(FormatNumber(m_acc), op);
         else ReplaceTrailingOpToken(opTok);
         return;
     }
 
-    // ge: 연쇄 계산 (예: "3 + 5" 상태에서 '*' 누름 -> 8 계산 후 * 대기)
+    // ge: 연쇄 계산 (예: "3 + 5" 상태에서 '*' 누름)
     bool err = false;
     const double res = ApplyBinary(m_pendingOp, m_acc, entry, err);
     if (err) { SetError(kErrDivZero); return; }
@@ -397,7 +413,7 @@ void Calculator::SetOperator(Op op)
     SetValue(res);
 
     m_pendingOp = op;
-    History_SetPending(m_acc, op);
+    History_SetPendingText(FormatNumber(m_acc), op);
     m_newEntry = true;
 }
 
@@ -406,19 +422,25 @@ void Calculator::Equal()
 {
     if (m_error) return;
 
-    // ge: 일반적인 계산 (좌변 연산자 우변 = 결과)
+    // ge: [수정] 0.00000 입력 후 = 눌렀을 때 표시창도 0으로 정규화
+    NormalizeDisplayIfPossible();
+
     if (m_pendingOp != Op::None)
     {
         const double left = m_acc;
         const double rhs = m_newEntry ? left : GetValue();
-        const CString rhsStr = m_newEntry ? FormatNumber(rhs) : m_buf;
+
+        // ge: [수정] 우항 표기도 정규화
+        const CString rhsStr = m_newEntry ? FormatNumber(rhs) : NormalizeNumericText(m_buf, true);
 
         bool err = false;
         const double res = ApplyBinary(m_pendingOp, left, rhs, err);
         if (err) { SetError(kErrDivZero); return; }
 
-        if (m_bufo.IsEmpty()) History_SetBinary(left, m_pendingOp, rhsStr, true);
-        else History_AppendRhsText(rhsStr, true);
+        if (m_bufo.IsEmpty())
+            History_SetBinaryText(FormatNumber(left), m_pendingOp, rhsStr, true);
+        else
+            History_AppendRhsText(rhsStr, true);
 
         SetValue(res);
 
@@ -431,10 +453,7 @@ void Calculator::Equal()
         m_afterPercent = false;
         m_afterUnary = false;
 
-        // ge: '=' 직후 퍼센트 반복은 "첫 %"에서 기준값을 잡아야 하므로 여기선 valid를 false로 둠
-        m_percentBaseValid = false;
-        m_percentBase = 0.0;
-
+        InvalidatePercentBase();
         return;
     }
 
@@ -446,7 +465,7 @@ void Calculator::Equal()
         const double res = ApplyBinary(m_lastOp, a, m_lastRhs, err);
         if (err) { SetError(kErrDivZero); return; }
 
-        History_SetBinary(a, m_lastOp, FormatNumber(m_lastRhs), true);
+        History_SetBinaryText(FormatNumber(a), m_lastOp, FormatNumber(m_lastRhs), true);
         SetValue(res);
 
         m_acc = res;
@@ -454,28 +473,22 @@ void Calculator::Equal()
         m_afterUnary = false;
         m_afterPercent = false;
 
-        // ge: 반복 '=' 이후에도 % 기준은 새로 잡게(첫 %에서) 만들기 위해 무효화
-        m_percentBaseValid = false;
-        m_percentBase = 0.0;
-
+        InvalidatePercentBase();
         return;
     }
 
-    // ge: 이미 '=' 상태면 아무 것도 하지 않음
     if (History_IsJustEvaluated()) return;
 
-    // ge: 단항 연산 표현이 있으면 그 뒤에 '=' 표시
+    // ge: [수정] 단독 '='에서도 히스토리 숫자 정규화
     if (!m_bufo.IsEmpty() && m_afterUnary) m_bufo += _T(" =");
-    else m_bufo = m_buf + _T(" =");
+    else m_bufo = NormalizeNumericText(m_buf, true) + _T(" =");
 
     m_acc = GetValue();
     m_newEntry = true;
     m_afterPercent = false;
     m_afterUnary = false;
 
-    // ge: '=' 직후 퍼센트 반복은 "첫 %"에서 기준값을 잡아야 하므로 valid는 false
-    m_percentBaseValid = false;
-    m_percentBase = 0.0;
+    InvalidatePercentBase();
 }
 
 // ge: 퍼센트(%) 처리
@@ -483,31 +496,33 @@ void Calculator::Percent()
 {
     if (m_error) return;
 
-    // ge: 연산자 없이 %만 누른 경우
-    // ge: - 표준 계산기 동작(사용자 요구): '=' 직후에는 "기준값(base)의 %를 반복 적용"
-    // ge:   예) 10 = %  -> 10의 10%  = 1
-    // ge:       다시 % -> 1의 10%   = 0.1
-    // ge:       9 = %   -> 9의 9%   = 0.81
-    // ge:       다시 % -> 0.81의 9% = 0.0729
-    // ge: - 그 외(그냥 10 % 같은 입력)는 0으로 초기화
     if (m_pendingOp == Op::None)
     {
-        // ge: '=' 직후이거나, 이미 % 반복 상태면(base 유지) 반복 퍼센트 적용
         if (History_IsJustEvaluated() || (m_afterPercent && m_percentBaseValid))
         {
-            // ge: 첫 %에서는 기준값(base)을 '=' 직후 값으로 저장
             if (!m_percentBaseValid)
             {
                 m_percentBase = GetValue();
                 m_percentBaseValid = true;
             }
 
+            // ge: base가 0이면 0%는 의미 없으니 0 유지 + 히스토리 어지럽히지 않음
+            if (std::fabs(m_percentBase) < 1e-15)
+            {
+                SetValue(0.0);
+                if (!History_IsJustEvaluated()) m_bufo = _T("0");
+                InvalidatePercentBase();
+
+                m_newEntry = false;
+                m_afterPercent = true;
+                m_afterUnary = false;
+                return;
+            }
+
             const double v = GetValue();
             const double out = v * (m_percentBase / 100.0);
 
-            // ge: 히스토리 표기(간단): "base %" 형태
             m_bufo = FormatNumber(m_percentBase) + _T(" %");
-
             SetValue(out);
 
             m_newEntry = false;
@@ -516,49 +531,32 @@ void Calculator::Percent()
             return;
         }
 
-        // ge: 일반적인 "연산자 없이 %"는 0으로 초기화
         SetValue(0.0);
         m_bufo = _T("0");
-
         m_newEntry = true;
         m_afterPercent = false;
         m_afterUnary = false;
 
-        // ge: 기준값도 무효화
-        m_percentBaseValid = false;
-        m_percentBase = 0.0;
-
+        InvalidatePercentBase();
         return;
     }
 
-    // ge: 우항 입력 중 %를 누른 경우 (예: 10 + 5 %)
-    // ge: 만약 숫자를 아직 입력하지 않았다면 좌항(m_acc)을 우항으로 간주 (예: 10 + %)
     const double entry = m_newEntry ? m_acc : GetValue();
     double rhs = 0.0;
 
-    // ge: 더하기/빼기는 비율 계산(좌항 * 우항 / 100), 곱하기/나누기는 산술 계산(우항 / 100)
     if (m_pendingOp == Op::Add || m_pendingOp == Op::Sub)
-    {
         rhs = m_acc * entry / 100.0;
-    }
     else
-    {
         rhs = entry / 100.0;
-    }
 
-    // ge: 계산된 우항(rhs)을 히스토리에 기록하고 화면에 표시
-    History_SetBinary(m_acc, m_pendingOp, FormatNumber(rhs), false);
+    History_SetBinaryText(FormatNumber(m_acc), m_pendingOp, FormatNumber(rhs), false);
     SetValue(rhs);
 
-    // ge: % 계산 후 상태 업데이트
-    // ge: 결과값(rhs)을 유지한 채 다음 연산(+, - 등)이나 등호(=)를 기다림
     m_newEntry = false;
     m_afterPercent = true;
     m_afterUnary = false;
 
-    // ge: 이항 퍼센트는 '='직후 반복 퍼센트 규칙과 섞이면 안 되므로 기준값 무효화
-    m_percentBaseValid = false;
-    m_percentBase = 0.0;
+    InvalidatePercentBase();
 }
 
 // ge: CE(입력 초기화) 처리
@@ -566,23 +564,14 @@ void Calculator::ClearEntry()
 {
     if (m_error) { Clear(); return; }
 
-    if (m_pendingOp == Op::None)
-    {
-        m_buf = _T("0");
-        History_Reset();
-    }
-    else
-    {
-        m_buf = _T("0");
-    }
+    m_buf = _T("0");
+    if (m_pendingOp == Op::None) History_Reset();
 
     m_newEntry = true;
     m_afterPercent = false;
     m_afterUnary = false;
 
-    // ge: 입력을 초기화하면 퍼센트 반복 기준도 끊는다
-    m_percentBaseValid = false;
-    m_percentBase = 0.0;
+    InvalidatePercentBase();
 }
 
 // ge: 단항 연산에서 사용할 피연산자(v)와 표기 문자열(argStr)을 준비
@@ -591,12 +580,12 @@ void Calculator::GetUnaryOperand(double& v, CString& argStr) const
     if (m_pendingOp != Op::None && m_newEntry)
     {
         v = m_acc;
-        argStr = FormatNumber(m_acc);
+        argStr = FormatNumber(m_acc); // ge: 대기 상태(좌항 op)에서는 좌항을 대상으로
     }
     else
     {
         v = GetValue();
-        argStr = m_buf;
+        argStr = NormalizeNumericText(m_buf, true); // ge: 히스토리 표기는 항상 정규화
     }
 }
 
@@ -628,18 +617,18 @@ void Calculator::ApplyUnary(UnaryKind kind)
 
     switch (kind)
     {
-    case UnaryKind::Reciprocal: // ge: 1/x
+    case UnaryKind::Reciprocal:
         if (v == 0.0) { SetError(kErrDivZero); return; }
         SetValue(1.0 / v);
         SetUnaryHistory(_T("1/(") + argStr + _T(")"));
         break;
 
-    case UnaryKind::Square: // ge: 제곱
+    case UnaryKind::Square:
         SetValue(v * v);
         SetUnaryHistory(_T("sqr(") + argStr + _T(")"));
         break;
 
-    case UnaryKind::Sqrt: // ge: 제곱근
+    case UnaryKind::Sqrt:
         if (v < 0.0) { SetError(kErrInvalid); return; }
         SetValue(std::sqrt(v));
         {
@@ -647,26 +636,20 @@ void Calculator::ApplyUnary(UnaryKind kind)
             SetUnaryHistory(root + _T("(") + argStr + _T(")"));
         }
         break;
-
     default:
         return;
     }
 
-    // ge: 단항 연산 직후는 "결과 표시 중" 상태로 둠
     m_newEntry = false;
     m_afterPercent = false;
     m_afterUnary = true;
 
-    // ge: 단항 결과가 나온 상태에서 '='직후 퍼센트 반복 기준은 의미가 불명확하므로 끊는다
-    m_percentBaseValid = false;
-    m_percentBase = 0.0;
+    InvalidatePercentBase();
 }
 
 // ge: 1/x 실행
 void Calculator::Reciprocal() { ApplyUnary(UnaryKind::Reciprocal); }
-
 // ge: 제곱 실행
 void Calculator::Square() { ApplyUnary(UnaryKind::Square); }
-
 // ge: 제곱근 실행
 void Calculator::SqrtX() { ApplyUnary(UnaryKind::Sqrt); }
