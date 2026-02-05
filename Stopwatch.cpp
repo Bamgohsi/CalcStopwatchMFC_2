@@ -32,9 +32,7 @@ LONGLONG Stopwatch::NowCounter() const
 
 LONGLONG Stopwatch::ElapsedCounterAt(LONGLONG stamp) const
 {
-    if (m_running)
-        return m_accum + (stamp - m_start);
-    return m_accum;
+    return m_running ? (m_accum + (stamp - m_start)) : m_accum;
 }
 
 void Stopwatch::ToggleStartStopAt(LONGLONG stamp)
@@ -54,11 +52,9 @@ Stopwatch::LapSnapshot Stopwatch::LapAt(LONGLONG stamp)
 {
     LapSnapshot snap{};
 
-    LONGLONG total = ElapsedCounterAt(stamp);
-    LONGLONG lap = total - m_lastLapTotal;
-
-    if (lap <= 0)
-        return snap;
+    const LONGLONG total = ElapsedCounterAt(stamp);
+    const LONGLONG lap = total - m_lastLapTotal;
+    if (lap <= 0) return snap;
 
     m_lapNo++;
     m_lastLapTotal = total;
@@ -79,14 +75,14 @@ CString Stopwatch::FormatHundredths(LONGLONG hundredths) const
 {
     if (hundredths < 0) hundredths = 0;
 
-    LONGLONG totalSec = hundredths / 100;
-    int hs = (int)(hundredths % 100);
+    const LONGLONG totalSec = hundredths / 100;
+    const int hs = (int)(hundredths % 100);
 
-    int sec = (int)(totalSec % 60);
-    LONGLONG totalMin = totalSec / 60;
+    const int sec = (int)(totalSec % 60);
+    const LONGLONG totalMin = totalSec / 60;
 
-    int min = (int)(totalMin % 60);
-    LONGLONG hour = totalMin / 60;
+    const int min = (int)(totalMin % 60);
+    const LONGLONG hour = totalMin / 60;
 
     CString s;
     s.Format(_T("%02lld:%02d:%02d.%02d"), hour, min, sec, hs);
@@ -96,13 +92,13 @@ CString Stopwatch::FormatHundredths(LONGLONG hundredths) const
 CString Stopwatch::FormatCounter(LONGLONG counter) const
 {
     if (counter < 0) counter = 0;
-    LONGLONG hs = (counter * 100) / m_freq;
+    const LONGLONG hs = (counter * 100) / m_freq;
     return FormatHundredths(hs);
 }
 
 CString Stopwatch::GetElapsedText() const
 {
-    LONGLONG c = NowCounter();
-    LONGLONG total = ElapsedCounterAt(c);
+    const LONGLONG c = NowCounter();
+    const LONGLONG total = ElapsedCounterAt(c);
     return FormatCounter(total);
 }

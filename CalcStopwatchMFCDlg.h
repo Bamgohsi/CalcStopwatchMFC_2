@@ -1,4 +1,7 @@
-﻿#pragma once
+﻿// CalcStopwatchMFCDlg.h: 헤더 파일
+//
+
+#pragma once
 
 #include "Calculator.h"
 #include "Stopwatch.h"
@@ -10,100 +13,119 @@
 #define WM_APP_STW_UPDATED  (WM_APP + 2)
 #define WM_APP_STW_LAP      (WM_APP + 3)
 
+
+// CCalcStopwatchMFCDlg 대화 상자
 class CCalcStopwatchMFCDlg : public CDialogEx
 {
+	// 생성입니다.
 public:
-    CCalcStopwatchMFCDlg(CWnd* pParent = nullptr);
+	CCalcStopwatchMFCDlg(CWnd* pParent = nullptr);	// 표준 생성자입니다.
 
+// 대화 상자 데이터입니다.
 #ifdef AFX_DESIGN_TIME
-    enum { IDD = IDD_CALCSTOPWATCHMFC_DIALOG };
+	enum { IDD = IDD_CALCSTOPWATCHMFC_DIALOG };
 #endif
 
 protected:
-    virtual void DoDataExchange(CDataExchange* pDX);
-    virtual BOOL OnInitDialog();
+	virtual void DoDataExchange(CDataExchange* pDX);	// DDX/DDV 지원입니다.
 
-    afx_msg void OnPaint();
-    afx_msg HCURSOR OnQueryDragIcon();
-    afx_msg void OnDestroy();
 
-    afx_msg void OnCalcButtonRange(UINT nID);
+// 구현입니다.
+protected:
+	HICON m_hIcon;
 
-    afx_msg void OnStwPlayStop();
-    afx_msg void OnStwRecord();
-    afx_msg void OnStwClear();
+	// 생성된 메시지 맵 함수
+	virtual BOOL OnInitDialog();
+	afx_msg void OnPaint();
+	afx_msg HCURSOR OnQueryDragIcon();
+	afx_msg void OnDestroy();
+	DECLARE_MESSAGE_MAP()
 
-    afx_msg LRESULT OnCalcUpdated(WPARAM, LPARAM);
-    afx_msg LRESULT OnStwUpdated(WPARAM, LPARAM);
-    afx_msg LRESULT OnStwLap(WPARAM, LPARAM);
+protected:
+	afx_msg void OnCalcButtonRange(UINT nID);
 
-    DECLARE_MESSAGE_MAP()
+	afx_msg void OnStwPlayStop();
+	afx_msg void OnStwRecord();
+	afx_msg void OnStwClear();
+
+	afx_msg LRESULT OnCalcUpdated(WPARAM, LPARAM);
+	afx_msg LRESULT OnStwUpdated(WPARAM, LPARAM);
+	afx_msg LRESULT OnStwLap(WPARAM, LPARAM);
 
 private:
-    HICON m_hIcon;
+	Calculator m_calc;
+	Stopwatch  m_stw;
 
-    Calculator m_calc;
-    Stopwatch  m_stw;
+	CListCtrl m_lapList;
 
-    CListCtrl m_lapList;
+	CEvent m_calcEvent;
+	CEvent m_stwEvent;
 
-    CEvent m_calcEvent;
-    CEvent m_stwEvent;
+	CCriticalSection m_calcQueueCs;
+	CCriticalSection m_calcStateCs;
+	CCriticalSection m_stwQueueCs;
+	CCriticalSection m_stwStateCs;
 
-    CCriticalSection m_calcQueueCs;
-    CCriticalSection m_calcStateCs;
-    CCriticalSection m_stwQueueCs;
-    CCriticalSection m_stwStateCs;
+	std::deque<Calculator::Command> m_calcQueue;
 
-    std::deque<Calculator::Command> m_calcQueue;
+	enum class SwCmdKind
+	{
+		ToggleStartStop,
+		Lap,
+		Reset
+	};
 
-    enum class SwCmdKind
-    {
-        ToggleStartStop,
-        Lap,
-        Reset
-    };
+	struct SwCommand
+	{
+		SwCmdKind kind;
+		LONGLONG  stamp;
+	};
 
-    struct SwCommand
-    {
-        SwCmdKind kind;
-        LONGLONG  stamp;
-    };
+	std::deque<SwCommand> m_stwQueue;
 
-    std::deque<SwCommand> m_stwQueue;
+	bool m_calcExit = false;
+	bool m_stwExit = false;
 
-    bool m_calcExit = false;
-    bool m_stwExit = false;
+	CWinThread* m_calcThread = nullptr;
+	CWinThread* m_stwThread = nullptr;
 
-    CWinThread* m_calcThread = nullptr;
-    CWinThread* m_stwThread = nullptr;
+	static UINT AFX_CDECL CalcThreadProc(LPVOID pParam);
+	static UINT AFX_CDECL StwThreadProc(LPVOID pParam);
 
-    static UINT AFX_CDECL CalcThreadProc(LPVOID pParam);
-    static UINT AFX_CDECL StwThreadProc(LPVOID pParam);
+	void EnqueueCalc(const Calculator::Command& cmd);
+	void EnqueueStw(const SwCommand& cmd);
+	void ApplyStwCommand(const SwCommand& cmd);
 
-    void EnqueueCalc(const Calculator::Command& cmd);
-    void EnqueueStw(const SwCommand& cmd);
-    void ApplyStwCommand(const SwCommand& cmd);
+	void UpdateCalcUI();
+	void UpdateStopwatchUI();
 
-    struct LapRow
-    {
-        int      lapNo = 0;
-        LONGLONG lapCounter = 0;
-        CString  lapText;
-        CString  totalText;
-    };
+	struct LapRow
+	{
+		int      lapNo = 0;
+		LONGLONG lapCounter = 0;
+		CString  lapText;
+		CString  totalText;
+	};
 
-    struct LapPayload
-    {
-        int      lapNo = 0;
-        LONGLONG lapCounter = 0;
-        CString  lapText;
-        CString  totalText;
-    };
+	struct LapPayload
+	{
+		int      lapNo = 0;
+		LONGLONG lapCounter = 0;
+		CString  lapText;
+		CString  totalText;
+	};
 
-    std::deque<LapRow> m_laps;
-    void RebuildLapList();
+	std::deque<LapRow> m_laps;
+	void RebuildLapList();
 
-    bool m_stwEverStarted = false;
-    bool m_stwResetPending = false;
+	bool m_stwEverStarted = false;
+	bool m_stwResetPending = false;
+
+
+	CString m_lastCalcDisp;
+	CString m_lastCalcHist;
+	CString m_lastNow;
+	CString m_lastElapsed;
+	BOOL m_lastRcEnabled = (BOOL)-1;
+	BOOL m_lastClearEnabled = (BOOL)-1;
 };
