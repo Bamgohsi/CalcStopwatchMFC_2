@@ -41,6 +41,10 @@ protected:
 	afx_msg void OnDestroy();
 	DECLARE_MESSAGE_MAP()
 
+	// ge: 키보드 입력 메시지를 가로채기 위한 가상 함수 재정의입니다.
+	// ge: 대화상자에서 엔터나 ESC를 눌렀을 때 창이 닫히는 것을 방지하고 계산기 동작으로 연결합니다.
+	virtual BOOL PreTranslateMessage(MSG* pMsg);
+
 protected:
 	afx_msg void OnCalcButtonRange(UINT nID);
 

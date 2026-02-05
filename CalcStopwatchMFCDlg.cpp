@@ -101,6 +101,116 @@ BOOL CCalcStopwatchMFCDlg::OnInitDialog()
 	return TRUE;  // 포커스를 컨트롤에 설정하지 않으면 TRUE를 반환합니다.
 }
 
+// ge: 메시지 전처리 함수 구현입니다.
+// ge: 윈도우 메시지가 처리되기 전에 키보드 입력을 가로채서 계산기 버튼 동작으로 변환합니다.
+BOOL CCalcStopwatchMFCDlg::PreTranslateMessage(MSG* pMsg)
+{
+	// ge: 키보드를 눌렀을 때의 메시지인지 확인합니다.
+	if (pMsg->message == WM_KEYDOWN)
+	{
+		// ge: 특수 키(엔터, 백스페이스, ESC 등) 처리를 위한 switch문입니다.
+		switch (pMsg->wParam)
+		{
+		case VK_RETURN:
+			// ge: 엔터키는 '=' 버튼(IDC_CAL_BTN24)과 매핑합니다. 
+			// ge: 기본 동작(대화상자 닫힘)을 막기 위해 버튼 함수를 직접 호출하고 TRUE를 반환합니다.
+			OnCalcButtonRange(IDC_CAL_BTN24);
+			return TRUE;
+
+		case VK_BACK:
+			// ge: 백스페이스키는 '⌫' 버튼(IDC_CAL_BTN4)과 매핑합니다.
+			OnCalcButtonRange(IDC_CAL_BTN4);
+			return TRUE;
+
+		case VK_ESCAPE:
+			// ge: ESC키는 'C' 버튼(IDC_CAL_BTN3, 전체 초기화)과 매핑합니다.
+			// ge: 대화상자가 닫히는 것을 방지합니다.
+			OnCalcButtonRange(IDC_CAL_BTN3);
+			return TRUE;
+
+		case VK_DELETE:
+			// ge: Delete키는 'CE' 버튼(IDC_CAL_BTN2, 입력 초기화)과 매핑합니다.
+			OnCalcButtonRange(IDC_CAL_BTN2);
+			return TRUE;
+
+		case VK_F9:
+			// ge: F9키는 표준 계산기처럼 '±' 버튼(IDC_CAL_BTN21, 부호 반전)과 매핑합니다.
+			OnCalcButtonRange(IDC_CAL_BTN21);
+			return TRUE;
+		}
+	}
+	// ge: 문자가 입력되었을 때의 메시지인지 확인합니다.
+	else if (pMsg->message == WM_CHAR)
+	{
+		UINT nChar = static_cast<UINT>(pMsg->wParam);
+
+		// ge: 숫자 0~9 처리
+		if (nChar >= '0' && nChar <= '9')
+		{
+			// ge: 0~9 숫자에 해당하는 버튼 ID를 계산하여 호출합니다.
+			switch (nChar)
+			{
+			case '0': OnCalcButtonRange(IDC_CAL_BTN22); break;
+			case '1': OnCalcButtonRange(IDC_CAL_BTN17); break;
+			case '2': OnCalcButtonRange(IDC_CAL_BTN18); break;
+			case '3': OnCalcButtonRange(IDC_CAL_BTN19); break;
+			case '4': OnCalcButtonRange(IDC_CAL_BTN13); break;
+			case '5': OnCalcButtonRange(IDC_CAL_BTN14); break;
+			case '6': OnCalcButtonRange(IDC_CAL_BTN15); break;
+			case '7': OnCalcButtonRange(IDC_CAL_BTN9); break;
+			case '8': OnCalcButtonRange(IDC_CAL_BTN10); break;
+			case '9': OnCalcButtonRange(IDC_CAL_BTN11); break;
+			}
+			return TRUE; // ge: 메시지를 처리했음을 알립니다.
+		}
+
+		// ge: 연산자 및 기타 기호 처리
+		switch (nChar)
+		{
+		case '+':
+			OnCalcButtonRange(IDC_CAL_BTN20); // + 버튼
+			return TRUE;
+		case '-':
+			OnCalcButtonRange(IDC_CAL_BTN16); // - 버튼
+			return TRUE;
+		case '*':
+		case 'x':
+		case 'X':
+			OnCalcButtonRange(IDC_CAL_BTN12); // × 버튼
+			return TRUE;
+		case '/':
+			OnCalcButtonRange(IDC_CAL_BTN8);  // ÷ 버튼
+			return TRUE;
+		case '.':
+		case ',':
+			OnCalcButtonRange(IDC_CAL_BTN23); // . 버튼 (소수점)
+			return TRUE;
+		case '=':
+			OnCalcButtonRange(IDC_CAL_BTN24); // = 버튼
+			return TRUE;
+		case '%':
+			OnCalcButtonRange(IDC_CAL_BTN1);  // % 버튼
+			return TRUE;
+		case 'r':
+		case 'R':
+			OnCalcButtonRange(IDC_CAL_BTN5);  // 1/x 버튼 (Reciprocal)
+			return TRUE;
+
+		case '@':
+			// ge: 요청하신 대로 제곱근은 오직 '@' 키로만 동작합니다.
+			OnCalcButtonRange(IDC_CAL_BTN7);  // √x 버튼 (Sqrt)
+			return TRUE;
+
+		case 'q':
+			// ge: 요청하신 대로 제곱은 오직 'q' 키로만 동작합니다.
+			OnCalcButtonRange(IDC_CAL_BTN6);  // x² 버튼 (Square)
+			return TRUE;
+		}
+	}
+
+	return CDialogEx::PreTranslateMessage(pMsg);
+}
+
 void CCalcStopwatchMFCDlg::OnDestroy()
 {
 	m_calcExit = true;

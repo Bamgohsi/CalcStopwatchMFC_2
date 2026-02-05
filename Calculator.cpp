@@ -147,6 +147,11 @@ void Calculator::AppendDecimal()
 void Calculator::Backspace()
 {
     if (m_error) return;
+
+    // ge: 1/x, x², √x 같은 단항 연산이나 % 연산의 결과값이 화면에 있는 경우,
+    // ge: 표준 계산기처럼 백스페이스로 숫자를 지울 수 없게 합니다.
+    if (m_afterUnary || m_afterPercent) return;
+
     if (m_newEntry) return;
 
     int len = m_buf.GetLength();
