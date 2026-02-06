@@ -3,7 +3,7 @@
 
 Stopwatch::Stopwatch()
 {
-    // ge: 시스템의 고해상도 타이머 주파수 획득
+    // 시스템의 고해상도 타이머 주파수 획득
     LARGE_INTEGER f;
     ::QueryPerformanceFrequency(&f);
     m_freq = f.QuadPart;
@@ -24,7 +24,7 @@ bool Stopwatch::IsRunning() const
     return m_running;
 }
 
-// ge: 현재 Tick 가져오기
+// 현재 Tick 가져오기
 LONGLONG Stopwatch::NowCounter() const
 {
     LARGE_INTEGER c;
@@ -32,7 +32,7 @@ LONGLONG Stopwatch::NowCounter() const
     return c.QuadPart;
 }
 
-// ge: 특정 시점까지의 경과 시간 계산
+// 특정 시점까지의 경과 시간 계산
 LONGLONG Stopwatch::ElapsedCounterAt(LONGLONG stamp) const
 {
     // 실행 중이면: 누적값 + (현재 - 시작)
@@ -40,7 +40,7 @@ LONGLONG Stopwatch::ElapsedCounterAt(LONGLONG stamp) const
     return m_running ? (m_accum + (stamp - m_start)) : m_accum;
 }
 
-// ge: 시작/정지 처리
+// 시작/정지 처리
 void Stopwatch::ToggleStartStopAt(LONGLONG stamp)
 {
     if (!m_running)
@@ -56,7 +56,7 @@ void Stopwatch::ToggleStartStopAt(LONGLONG stamp)
     m_running = false;
 }
 
-// ge: 랩타임 계산
+// 랩타임 계산
 Stopwatch::LapSnapshot Stopwatch::LapAt(LONGLONG stamp)
 {
     LapSnapshot snap{};
@@ -74,14 +74,14 @@ Stopwatch::LapSnapshot Stopwatch::LapAt(LONGLONG stamp)
     return snap;
 }
 
-// ge: 현재 시각 포맷팅
+// 현재 시각 포맷팅
 CString Stopwatch::GetNowText() const
 {
     CTime t = CTime::GetCurrentTime();
     return t.Format(_T("%H:%M:%S"));
 }
 
-// ge: 1/100초 단위를 시:분:초.ms 로 변환
+// 1/100초 단위를 시:분:초.ms 로 변환
 CString Stopwatch::FormatHundredths(LONGLONG hundredths) const
 {
     if (hundredths < 0) hundredths = 0;
@@ -100,7 +100,7 @@ CString Stopwatch::FormatHundredths(LONGLONG hundredths) const
     return s;
 }
 
-// ge: Tick -> 시간 문자열 변환
+// Tick -> 시간 문자열 변환
 CString Stopwatch::FormatCounter(LONGLONG counter) const
 {
     if (counter < 0) counter = 0;
