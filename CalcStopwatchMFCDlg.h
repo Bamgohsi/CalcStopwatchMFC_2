@@ -135,7 +135,6 @@ private:
 	bool m_stwEverStarted = false;
 	bool m_stwResetPending = false;
 
-
 	// UI 캐시
 	CString m_lastCalcDisp;
 	CString m_lastCalcHist;
