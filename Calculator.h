@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 #include <afxstr.h>
 
 class Calculator
@@ -32,46 +32,44 @@ public:
 public:
     Calculator();
 
+    // ê²°ê³¼/íˆìŠ¤í† ë¦¬ í‘œì‹œ
     CString GetDisplay() const;
     CString GetRSHS() const;
 
+    // ì…ë ¥ ì²˜ë¦¬
     void Execute(const Command& cmd);
 
 private:
-    // ge: °øÅë »óÅÂ
+    // ìƒíƒœ ì´ˆê¸°í™”/ì—ëŸ¬
     void Clear();
     void SetError(const CString& msg);
 
-    // ge: Ç¥½Ã/Á¤±ÔÈ­
+    // í‘œì‹œ/ì •ê·œí™”
     double  GetValue() const;
     void    SetValue(double v);
     CString FormatNumber(double v) const;
-
-    // ge: "0.00000" °°Àº ÀÔ·ÂÀ» È÷½ºÅä¸®/Ç¥½Ã¿ëÀ¸·Î Á¤±ÔÈ­(0À¸·Î ½º³À)
     CString NormalizeNumericText(const CString& rawText, bool keepTrailingDot) const;
-
-    // ge: »ç¿ëÀÚ°¡ ¼ıÀÚ¸¦ ÀÔ·ÂÇØµĞ »óÅÂ¿¡¼­ +/= µîÀ» ´©¸¦ ¶§ Ç¥½ÃÃ¢µµ Á¤±ÔÈ­
     void NormalizeDisplayIfPossible();
 
-    // ge: '% ¹İº¹' ±âÁØ°ª ¹«È¿È­
+    // í¼ì„¼íŠ¸ ë°˜ë³µ ê¸°ì¤€ ì´ˆê¸°í™”
     void InvalidatePercentBase();
 
-    // ge: Æ¯¼ö¿¬»ê Á÷ÈÄ ÀÔ·Â ½ÃÀÛ °øÅë Ã³¸®(Áßº¹ Á¦°Å)
+    // íŠ¹ìˆ˜ ì—°ì‚° ì§í›„ ì…ë ¥ ì‹œì‘
     bool BeginNewEntryFromSpecial(const CString& newText);
 
-    // ge: ÀÔ·Â Ã³¸®
+    // ì…ë ¥ ì²˜ë¦¬
     void AppendDigit(int d);
     void AppendDecimal();
     void Backspace();
     void ToggleSign();
 
-    // ge: ÀÌÇ× Ã³¸®
+    // ì´í•­ ì²˜ë¦¬
     void SetOperator(Op op);
     void Equal();
     void Percent();
     void ClearEntry();
 
-    // ge: ´ÜÇ× Ã³¸®
+    // ë‹¨í•­ ì²˜ë¦¬
     enum class UnaryKind { Reciprocal, Square, Sqrt };
     void ApplyUnary(UnaryKind kind);
     void GetUnaryOperand(double& v, CString& argStr) const;
@@ -81,7 +79,7 @@ private:
     void Square();
     void SqrtX();
 
-    // ge: ¿¬»ê/È÷½ºÅä¸®
+    // ì—°ì‚°/íˆìŠ¤í† ë¦¬
     CString OpSymbol(Op op) const;
     double  ApplyBinary(Op op, double a, double b, bool& err) const;
 
@@ -92,14 +90,13 @@ private:
     bool History_IsJustEvaluated() const;
     void History_ClearIfJustEvaluated();
 
-    // ge: ¼ıÀÚ/ÅØ½ºÆ® È¥¿ëÀ¸·Î Áßº¹µÇ´ø ÇÔ¼öµéÀ» ÅØ½ºÆ® ±â¹İÀ¸·Î¸¸ ÅëÀÏ
     void History_SetPendingText(const CString& lhsText, Op op);
     void History_SetBinaryText(const CString& lhsText, Op op, const CString& rhsText, bool withEqual);
     void History_AppendRhsText(const CString& rhsText, bool withEqual);
 
 private:
-    CString m_buf;   // ¸ŞÀÎ Ç¥½Ã
-    CString m_bufo;  // È÷½ºÅä¸® Ç¥½Ã
+    CString m_buf;   // ê²°ê³¼ì°½
+    CString m_bufo;  // íˆìŠ¤í† ë¦¬ì°½
 
     bool m_newEntry = true;
 

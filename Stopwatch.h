@@ -1,39 +1,37 @@
-#pragma once
+ï»¿#pragma once
 #include <afxstr.h>
 #include <Windows.h>
 
-// QueryPerformanceCounter¸¦ »ç¿ëÇÏ´Â Á¤¹Ğ ½ºÅ¾¿öÄ¡ Å¬·¡½º
+// QueryPerformanceCounter ê¸°ë°˜ ìŠ¤í†±ì›Œì¹˜
 class Stopwatch
 {
 public:
-    // ·¦Å¸ÀÓ Á¤º¸¸¦ ´ã´Â ±¸Á¶Ã¼
     struct LapSnapshot
     {
-        int      lapNo = 0;           // ·¦ ¹øÈ£
-        LONGLONG totalCounter = 0;    // ÃÑ °æ°ú Æ½(Tick)
-        LONGLONG lapCounter = 0;      // ÀÌ¹ø ±¸°£ °æ°ú Æ½
+        int      lapNo = 0;           // ë© ë²ˆí˜¸
+        LONGLONG totalCounter = 0;    // ì´ ê²½ê³¼ í‹±
+        LONGLONG lapCounter = 0;      // ì´ë²ˆ êµ¬ê°„ í‹±
     };
 
 public:
     Stopwatch();
 
-    // ÃÊ±âÈ­
+    // ì´ˆê¸°í™”
     void Reset();
 
-    // ½ÃÀÛ/¸ØÃã Åä±Û (Á¤¹Ğµµ¸¦ À§ÇØ Å¬¸¯ ½ÃÁ¡ÀÇ TickÀ» ÀÎÀÚ·Î ¹ŞÀ½)
+    // ì‹œì‘/ë©ˆì¶¤ í† ê¸€
     void ToggleStartStopAt(LONGLONG stamp);
-    // ·¦Å¸ÀÓ ±â·Ï
+    // ë© ê¸°ë¡
     LapSnapshot LapAt(LONGLONG stamp);
 
-    // ½ÇÇà ÁßÀÎÁö È®ÀÎ
+    // ì‹¤í–‰ ìƒíƒœ
     bool IsRunning() const;
 
-    // ÇöÀç ½Ã°¢ ¹®ÀÚ¿­ (HH:MM:SS)
+    // í˜„ì¬ ì‹œê°/ê²½ê³¼ ì‹œê°„
     CString GetNowText() const;
-    // °æ°ú ½Ã°£ ¹®ÀÚ¿­ (HH:MM:SS.ms)
     CString GetElapsedText() const;
 
-    // ³»ºÎ Æ½ °ªÀ» ½Ã°£ ¹®ÀÚ¿­·Î º¯È¯
+    // ë‚´ë¶€ ì¹´ìš´í„° -> ì‹œê°„ ë¬¸ìì—´
     CString FormatCounter(LONGLONG counter) const;
 
 private:
@@ -42,12 +40,12 @@ private:
     CString  FormatHundredths(LONGLONG hundredths) const;
 
 private:
-    LONGLONG m_freq = 0; // CPU Å¸ÀÌ¸Ó ÁÖÆÄ¼ö (ÃÊ´ç Æ½ ¼ö)
+    LONGLONG m_freq = 0; // íƒ€ì´ë¨¸ ì£¼íŒŒìˆ˜
 
-    bool     m_running = false; // ½ÇÇà »óÅÂ
-    LONGLONG m_accum = 0;       // ´©ÀûµÈ ½Ã°£ (Á¤ÁöÇßÀ» ¶§ ÀúÀåµÊ)
-    LONGLONG m_start = 0;       // ÇöÀç ½ÇÇà ±¸°£ÀÇ ½ÃÀÛ ½Ã°£
+    bool     m_running = false;
+    LONGLONG m_accum = 0;
+    LONGLONG m_start = 0;
 
-    LONGLONG m_lastLapTotal = 0; // Á÷Àü ·¦±îÁöÀÇ ÃÑ ½Ã°£
-    int      m_lapNo = 0;        // ·¦ Ä«¿îÆ®
+    LONGLONG m_lastLapTotal = 0;
+    int      m_lapNo = 0;
 };

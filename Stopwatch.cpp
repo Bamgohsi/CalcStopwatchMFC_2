@@ -1,9 +1,9 @@
-#include "pch.h"
+ï»¿#include "pch.h"
 #include "Stopwatch.h"
 
 Stopwatch::Stopwatch()
 {
-    // ge: ½Ã½ºÅÛÀÇ °íÇØ»óµµ Å¸ÀÌ¸Ó ÁÖÆÄ¼ö È¹µæ
+    // ê³ í•´ìƒë„ íƒ€ì´ë¨¸ ì£¼íŒŒìˆ˜ í™•ë³´
     LARGE_INTEGER f;
     ::QueryPerformanceFrequency(&f);
     m_freq = f.QuadPart;
@@ -24,7 +24,7 @@ bool Stopwatch::IsRunning() const
     return m_running;
 }
 
-// ge: ÇöÀç Tick °¡Á®¿À±â
+// í˜„ì¬ QPC ì¹´ìš´í„°
 LONGLONG Stopwatch::NowCounter() const
 {
     LARGE_INTEGER c;
@@ -32,37 +32,34 @@ LONGLONG Stopwatch::NowCounter() const
     return c.QuadPart;
 }
 
-// ge: Æ¯Á¤ ½ÃÁ¡±îÁöÀÇ °æ°ú ½Ã°£ °è»ê
+// íŠ¹ì • ì‹œì ê¹Œì§€ì˜ ì´ ê²½ê³¼ ì¹´ìš´í„°
 LONGLONG Stopwatch::ElapsedCounterAt(LONGLONG stamp) const
 {
-    // ½ÇÇà ÁßÀÌ¸é: ´©Àû°ª + (ÇöÀç - ½ÃÀÛ)
-    // Á¤Áö ÁßÀÌ¸é: ´©Àû°ª¸¸
     return m_running ? (m_accum + (stamp - m_start)) : m_accum;
 }
 
-// ge: ½ÃÀÛ/Á¤Áö Ã³¸®
+// ì‹œì‘/ì •ì§€ í† ê¸€ (í´ë¦­ ì‹œì ì˜ stamp ì‚¬ìš©)
 void Stopwatch::ToggleStartStopAt(LONGLONG stamp)
 {
     if (!m_running)
     {
-        // Á¤Áö -> ½ÃÀÛ
         m_running = true;
         m_start = stamp;
         return;
     }
 
-    // ½ÃÀÛ -> Á¤Áö (Èå¸¥ ½Ã°£À» ´©ÀûÇÔ)
+    // ì •ì§€ ì‹œ ëˆ„ì 
     m_accum += (stamp - m_start);
     m_running = false;
 }
 
-// ge: ·¦Å¸ÀÓ °è»ê
+// ë© ê¸°ë¡ ìŠ¤ëƒ…ìƒ· ìƒì„±
 Stopwatch::LapSnapshot Stopwatch::LapAt(LONGLONG stamp)
 {
     LapSnapshot snap{};
 
     const LONGLONG total = ElapsedCounterAt(stamp);
-    const LONGLONG lap = total - m_lastLapTotal; // ÀüÃ¼ - ÀÌÀü·¦
+    const LONGLONG lap = total - m_lastLapTotal;
     if (lap <= 0) return snap;
 
     m_lapNo++;
@@ -74,14 +71,14 @@ Stopwatch::LapSnapshot Stopwatch::LapAt(LONGLONG stamp)
     return snap;
 }
 
-// ge: ÇöÀç ½Ã°¢ Æ÷¸ËÆÃ
+// í˜„ì¬ ì‹œê° (HH:MM:SS)
 CString Stopwatch::GetNowText() const
 {
     CTime t = CTime::GetCurrentTime();
     return t.Format(_T("%H:%M:%S"));
 }
 
-// ge: 1/100ÃÊ ´ÜÀ§¸¦ ½Ã:ºĞ:ÃÊ.ms ·Î º¯È¯
+// 1/100ì´ˆ ë‹¨ìœ„ í¬ë§·
 CString Stopwatch::FormatHundredths(LONGLONG hundredths) const
 {
     if (hundredths < 0) hundredths = 0;
@@ -100,11 +97,10 @@ CString Stopwatch::FormatHundredths(LONGLONG hundredths) const
     return s;
 }
 
-// ge: Tick -> ½Ã°£ ¹®ÀÚ¿­ º¯È¯
+// QPC ì¹´ìš´í„° -> ì‹œê°„ ë¬¸ìì—´
 CString Stopwatch::FormatCounter(LONGLONG counter) const
 {
     if (counter < 0) counter = 0;
-    // TickÀ» ÁÖÆÄ¼ö·Î ³ª´©¾î 1/100ÃÊ ´ÜÀ§·Î º¯È¯
     const LONGLONG hs = (counter * 100) / m_freq;
     return FormatHundredths(hs);
 }

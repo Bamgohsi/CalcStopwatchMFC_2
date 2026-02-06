@@ -19,7 +19,7 @@
 
 CCalcStopwatchMFCDlg::CCalcStopwatchMFCDlg(CWnd* pParent)
 	: CDialogEx(IDD_CALCSTOPWATCHMFC_DIALOG, pParent)
-	, m_calcEvent(FALSE, FALSE) // 이벤트 객체 초기화
+	, m_calcEvent(FALSE, FALSE)
 	, m_stwEvent(FALSE, FALSE)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
@@ -36,14 +36,14 @@ BEGIN_MESSAGE_MAP(CCalcStopwatchMFCDlg, CDialogEx)
 	ON_WM_QUERYDRAGICON()
 	ON_WM_DESTROY()
 
-	// 계산기 버튼 ID들을 하나의 함수로 매핑
+	// 계산기 버튼 통합 처리
 	ON_COMMAND_RANGE(IDC_CAL_BTN1, IDC_CAL_BTN24, &CCalcStopwatchMFCDlg::OnCalcButtonRange)
 
 	ON_BN_CLICKED(IDC_STWC_PS, &CCalcStopwatchMFCDlg::OnStwPlayStop)
 	ON_BN_CLICKED(IDC_STWC_RC, &CCalcStopwatchMFCDlg::OnStwRecord)
 	ON_BN_CLICKED(IDC_STWC_CLEAR, &CCalcStopwatchMFCDlg::OnStwClear)
 
-	// 스레드 메시지 연결
+	// 워커 스레드 -> UI 갱신
 	ON_MESSAGE(WM_APP_CALC_UPDATED, &CCalcStopwatchMFCDlg::OnCalcUpdated)
 	ON_MESSAGE(WM_APP_STW_UPDATED, &CCalcStopwatchMFCDlg::OnStwUpdated)
 	ON_MESSAGE(WM_APP_STW_LAP, &CCalcStopwatchMFCDlg::OnStwLap)
@@ -56,19 +56,13 @@ BOOL CCalcStopwatchMFCDlg::OnInitDialog()
 {
 	CDialogEx::OnInitDialog();
 
-	// 이 대화 상자의 아이콘을 설정합니다.  응용 프로그램의 주 창이 대화 상자가 아닐 경우에는
-	// 프레임워크가 이 작업을 자동으로 수행합니다.
-	SetIcon(m_hIcon, TRUE);			// 큰 아이콘을 설정합니다.
-	SetIcon(m_hIcon, FALSE);		// 작은 아이콘을 설정합니다.
+	SetIcon(m_hIcon, TRUE);
+	SetIcon(m_hIcon, FALSE);
 
-	// TODO: 여기에 추가 초기화 작업을 추가합니다.
-
-	// 스톱워치 변수 초기화
 	m_stwEverStarted = false;
 	m_stwResetPending = false;
 	m_laps.clear();
 
-	// UI 캐시 초기화
 	m_lastCalcDisp.Empty();
 	m_lastCalcHist.Empty();
 	m_lastNow.Empty();
@@ -76,7 +70,7 @@ BOOL CCalcStopwatchMFCDlg::OnInitDialog()
 	m_lastRcEnabled = (BOOL)-1;
 	m_lastClearEnabled = (BOOL)-1;
 
-	// 리스트 컨트롤 설정 (컬럼 추가, 스타일 지정)
+	// 랩 리스트 초기화
 	m_lapList.ModifyStyle(0, LVS_REPORT);
 	m_lapList.DeleteAllItems();
 	while (m_lapList.DeleteColumn(0)) {}
@@ -88,64 +82,59 @@ BOOL CCalcStopwatchMFCDlg::OnInitDialog()
 	DWORD ex = m_lapList.GetExtendedStyle();
 	m_lapList.SetExtendedStyle(ex | LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
 
-	UpdateCalcUI(); // UI 갱신
+	UpdateCalcUI();
 	UpdateStopwatchUI();
 
-	if (GetDlgItem(IDC_STWC_RC))    GetDlgItem(IDC_STWC_RC)->EnableWindow(FALSE); //기록 및 초기화 초기 비활성화
+	if (GetDlgItem(IDC_STWC_RC))    GetDlgItem(IDC_STWC_RC)->EnableWindow(FALSE);
 	if (GetDlgItem(IDC_STWC_CLEAR)) GetDlgItem(IDC_STWC_CLEAR)->EnableWindow(FALSE);
 
-	// 작업 스레드 생성 및 시작
+	// 워커 스레드 시작
 	m_calcExit = false;
 	m_stwExit = false;
 
 	m_calcThread = AfxBeginThread(&CCalcStopwatchMFCDlg::CalcThreadProc, this);
-	if (m_calcThread) m_calcThread->m_bAutoDelete = FALSE; // 직접 제어하기 위해 자동 삭제 끔
+	if (m_calcThread) m_calcThread->m_bAutoDelete = FALSE;
 
 	m_stwThread = AfxBeginThread(&CCalcStopwatchMFCDlg::StwThreadProc, this);
 	if (m_stwThread) m_stwThread->m_bAutoDelete = FALSE;
 
-	return TRUE;  // 포커스를 컨트롤에 설정하지 않으면 TRUE를 반환합니다.
+	return TRUE;
 }
 
-// 키보드 입력 가로채기 구현
+// 키보드 입력 매핑
 BOOL CCalcStopwatchMFCDlg::PreTranslateMessage(MSG* pMsg)
 {
-	// 키를 눌렀을 때
 	if (pMsg->message == WM_KEYDOWN)
 	{
-		// 특수 키 처리
 		switch (pMsg->wParam)
 		{
-		case VK_RETURN: // 엔터 -> '=' 버튼
+		case VK_RETURN: // 엔터 -> '='
 			OnCalcButtonRange(IDC_CAL_BTN24);
-			return TRUE; // 메시지 처리 완료 (창 닫힘 방지)
+			return TRUE;
 
-		case VK_BACK: // 백스페이스 -> '<-' 버튼
+		case VK_BACK: // 백스페이스 -> '<-'
 			OnCalcButtonRange(IDC_CAL_BTN4);
 			return TRUE;
 
-		case VK_ESCAPE: // ESC -> 'C' 버튼
+		case VK_ESCAPE: // ESC -> 'C'
 			OnCalcButtonRange(IDC_CAL_BTN3);
 			return TRUE;
 
-		case VK_DELETE: // Delete -> 'CE' 버튼
+		case VK_DELETE: // Delete -> 'CE'
 			OnCalcButtonRange(IDC_CAL_BTN2);
 			return TRUE;
 
-		case VK_F9: // F9 -> +/- 버튼 (표준 계산기 단축키)
+		case VK_F9: // F9 -> '+/-'
 			OnCalcButtonRange(IDC_CAL_BTN21);
 			return TRUE;
 		}
 	}
-	// 문자가 입력될 때 (숫자, 연산자)
 	else if (pMsg->message == WM_CHAR)
 	{
 		UINT nChar = static_cast<UINT>(pMsg->wParam);
 
-		// 숫자 0~9 처리
 		if (nChar >= '0' && nChar <= '9')
 		{
-			// 각 숫자에 맞는 버튼 ID 호출
 			switch (nChar)
 			{
 			case '0': OnCalcButtonRange(IDC_CAL_BTN22); break;
@@ -162,24 +151,23 @@ BOOL CCalcStopwatchMFCDlg::PreTranslateMessage(MSG* pMsg)
 			return TRUE;
 		}
 
-		// 연산자 및 특수 기능 처리
 		switch (nChar)
 		{
 		case '+': OnCalcButtonRange(IDC_CAL_BTN20); return TRUE;
 		case '-': OnCalcButtonRange(IDC_CAL_BTN16); return TRUE;
 		case '*':
 		case 'x':
-		case 'X': OnCalcButtonRange(IDC_CAL_BTN12); return TRUE; // 곱하기
-		case '/': OnCalcButtonRange(IDC_CAL_BTN8);  return TRUE; // 나누기
+		case 'X': OnCalcButtonRange(IDC_CAL_BTN12); return TRUE;
+		case '/': OnCalcButtonRange(IDC_CAL_BTN8);  return TRUE;
 		case '.':
-		case ',': OnCalcButtonRange(IDC_CAL_BTN23); return TRUE; // 소수점
-		case '=': OnCalcButtonRange(IDC_CAL_BTN24); return TRUE; // 등호
-		case '%': OnCalcButtonRange(IDC_CAL_BTN1);  return TRUE; // 퍼센트
+		case ',': OnCalcButtonRange(IDC_CAL_BTN23); return TRUE;
+		case '=': OnCalcButtonRange(IDC_CAL_BTN24); return TRUE;
+		case '%': OnCalcButtonRange(IDC_CAL_BTN1);  return TRUE;
 		case 'r':
-		case 'R': OnCalcButtonRange(IDC_CAL_BTN5);  return TRUE; // 역수 (1/x)
+		case 'R': OnCalcButtonRange(IDC_CAL_BTN5);  return TRUE;
 
-		case '@': OnCalcButtonRange(IDC_CAL_BTN7);  return TRUE; // 제곱근(@)
-		case 'q': OnCalcButtonRange(IDC_CAL_BTN6);  return TRUE; // 제곱(q)
+		case '@': OnCalcButtonRange(IDC_CAL_BTN7);  return TRUE;
+		case 'q': OnCalcButtonRange(IDC_CAL_BTN6);  return TRUE;
 		}
 	}
 
@@ -188,7 +176,6 @@ BOOL CCalcStopwatchMFCDlg::PreTranslateMessage(MSG* pMsg)
 
 void CCalcStopwatchMFCDlg::OnDestroy()
 {
-	// 프로그램 종료 시 스레드 정리
 	m_calcExit = true;
 	m_stwExit = true;
 
@@ -212,19 +199,14 @@ void CCalcStopwatchMFCDlg::OnDestroy()
 	CDialogEx::OnDestroy();
 }
 
-// 대화 상자에 최소화 단추를 추가할 경우 아이콘을 그리려면
-//  아래 코드가 필요합니다.  문서/뷰 모델을 사용하는 MFC 애플리케이션의 경우에는
-//  프레임워크에서 이 작업을 자동으로 수행합니다.
-
 void CCalcStopwatchMFCDlg::OnPaint()
 {
 	if (IsIconic())
 	{
-		CPaintDC dc(this); // 그리기를 위한 디바이스 컨텍스트입니다.
+		CPaintDC dc(this);
 
 		SendMessage(WM_ICONERASEBKGND, reinterpret_cast<WPARAM>(dc.GetSafeHdc()), 0);
 
-		// 클라이언트 사각형에서 아이콘을 가운데에 맞춥니다.
 		int cxIcon = GetSystemMetrics(SM_CXICON);
 		int cyIcon = GetSystemMetrics(SM_CYICON);
 		CRect rect;
@@ -232,7 +214,6 @@ void CCalcStopwatchMFCDlg::OnPaint()
 		int x = (rect.Width() - cxIcon + 1) / 2;
 		int y = (rect.Height() - cyIcon + 1) / 2;
 
-		// 아이콘을 그립니다.
 		dc.DrawIcon(x, y, m_hIcon);
 	}
 	else
@@ -241,24 +222,21 @@ void CCalcStopwatchMFCDlg::OnPaint()
 	}
 }
 
-// 사용자가 최소화된 창을 끄는 동안에 커서가 표시되도록 시스템에서
-//  이 함수를 호출합니다.
 HCURSOR CCalcStopwatchMFCDlg::OnQueryDragIcon()
 {
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
-// 계산기 UI 갱신 (스레드에서 호출됨)
+// 계산기 UI 갱신
 void CCalcStopwatchMFCDlg::UpdateCalcUI()
 {
 	CString disp, hist;
 	{
-		CSingleLock lock(&m_calcStateCs, TRUE); // 데이터 읽는 동안 락 걸기
+		CSingleLock lock(&m_calcStateCs, TRUE);
 		disp = m_calc.GetDisplay();
 		hist = m_calc.GetRSHS();
 	}
 
-	// 값이 바뀐 경우에만 갱신 (깜빡임 방지)
 	if (disp != m_lastCalcDisp)
 	{
 		SetDlgItemText(IDC_CAL_RESULT, disp);
@@ -272,7 +250,7 @@ void CCalcStopwatchMFCDlg::UpdateCalcUI()
 	}
 }
 
-// 스탑워치 UI 갱신
+// 스톱워치 UI 갱신
 void CCalcStopwatchMFCDlg::UpdateStopwatchUI()
 {
 	CString now;
@@ -301,7 +279,6 @@ void CCalcStopwatchMFCDlg::UpdateStopwatchUI()
 		m_lastElapsed = elapsed;
 	}
 
-	// 버튼 활성화/비활성화 상태 관리
 	const bool dirty = (!m_laps.empty() || m_stwEverStarted);
 
 	const BOOL rcEnabled = running ? TRUE : FALSE;
@@ -322,24 +299,23 @@ void CCalcStopwatchMFCDlg::UpdateStopwatchUI()
 	}
 }
 
-// 계산 명령 큐 삽입
+// 계산기 명령 큐
 void CCalcStopwatchMFCDlg::EnqueueCalc(const Calculator::Command& cmd)
 {
 	{
 		CSingleLock lock(&m_calcQueueCs, TRUE);
 		m_calcQueue.push_back(cmd);
 	}
-	m_calcEvent.SetEvent(); // 스레드 깨우기
+	m_calcEvent.SetEvent();
 }
 
-// 계산기 작업 스레드
+// 계산기 워커 스레드
 UINT AFX_CDECL CCalcStopwatchMFCDlg::CalcThreadProc(LPVOID pParam)
 {
 	auto dlg = reinterpret_cast<CCalcStopwatchMFCDlg*>(pParam);
 
 	while (!dlg->m_calcExit)
 	{
-		// 명령이 올 때까지 대기
 		dlg->m_calcEvent.Lock();
 		if (dlg->m_calcExit) break;
 
@@ -348,7 +324,6 @@ UINT AFX_CDECL CCalcStopwatchMFCDlg::CalcThreadProc(LPVOID pParam)
 			Calculator::Command cmd{};
 			bool hasCmd = false;
 
-			// 큐에서 명령 꺼내기
 			{
 				CSingleLock lock(&dlg->m_calcQueueCs, TRUE);
 				if (!dlg->m_calcQueue.empty())
@@ -361,14 +336,12 @@ UINT AFX_CDECL CCalcStopwatchMFCDlg::CalcThreadProc(LPVOID pParam)
 
 			if (!hasCmd) break;
 
-			// 명령 실행
 			{
 				CSingleLock lock(&dlg->m_calcStateCs, TRUE);
 				dlg->m_calc.Execute(cmd);
 			}
 		}
 
-		// UI 갱신 요청 메시지 전송
 		dlg->PostMessage(WM_APP_CALC_UPDATED, 0, 0);
 	}
 
@@ -381,13 +354,11 @@ LRESULT CCalcStopwatchMFCDlg::OnCalcUpdated(WPARAM, LPARAM)
 	return 0;
 }
 
-// 계산기 버튼 클릭 처리
 void CCalcStopwatchMFCDlg::OnCalcButtonRange(UINT nID)
 {
 	const int idx = (int)nID - (int)IDC_CAL_BTN1;
 	if (idx < 0 || idx >= 24) return;
 
-	// 람다 명령 생성 코드
 	auto MakeDigit = [](int d) {
 		Calculator::Command c{};
 		c.kind = Calculator::CmdKind::Digit;
@@ -406,7 +377,6 @@ void CCalcStopwatchMFCDlg::OnCalcButtonRange(UINT nID)
 		return c;
 	};
 
-	// 버튼 ID 순서에 따른 명령 매핑 테이블
 	static const Calculator::Command kMap[24] = {
 		MakeCmd(Calculator::CmdKind::Percent),		// 0번  (%)
 		MakeCmd(Calculator::CmdKind::ClearEntry),	// 1번  (CE)
@@ -441,29 +411,26 @@ void CCalcStopwatchMFCDlg::OnCalcButtonRange(UINT nID)
 	EnqueueCalc(kMap[idx]);
 }
 
-// 스톱워치 명령 큐 삽입
+// 스톱워치 명령 큐
 void CCalcStopwatchMFCDlg::EnqueueStw(const SwCommand& cmd)
 {
 	{
 		CSingleLock lock(&m_stwQueueCs, TRUE);
 		m_stwQueue.push_back(cmd);
 	}
-	m_stwEvent.SetEvent(); // 스레드 깨우기
+	m_stwEvent.SetEvent();
 }
 
-// 스톱워치 명령 실행
 void CCalcStopwatchMFCDlg::ApplyStwCommand(const SwCommand& cmd)
 {
 	switch (cmd.kind)
 	{
 	case SwCmdKind::ToggleStartStop:
-		// 시작/중지 상태 전환
 		m_stwResetPending = false;
 		m_stw.ToggleStartStopAt(cmd.stamp);
 		break;
 
 	case SwCmdKind::Reset:
-		// 리셋 처리
 		m_stw.Reset();
 		m_stwResetPending = false;
 		break;
@@ -473,7 +440,7 @@ void CCalcStopwatchMFCDlg::ApplyStwCommand(const SwCommand& cmd)
 	}
 }
 
-// 스탑워치 작업 스레드
+// 스톱워치 워커 스레드
 UINT AFX_CDECL CCalcStopwatchMFCDlg::StwThreadProc(LPVOID pParam)
 {
 	auto dlg = reinterpret_cast<CCalcStopwatchMFCDlg*>(pParam);
@@ -481,7 +448,6 @@ UINT AFX_CDECL CCalcStopwatchMFCDlg::StwThreadProc(LPVOID pParam)
 
 	while (!dlg->m_stwExit)
 	{
-		// 16ms(약 60프레임)마다 깨어나거나 이벤트 발생 시 깨어남
 		BOOL signaled = dlg->m_stwEvent.Lock(16);
 		if (dlg->m_stwExit) break;
 
@@ -516,7 +482,6 @@ UINT AFX_CDECL CCalcStopwatchMFCDlg::StwThreadProc(LPVOID pParam)
 						snap = dlg->m_stw.LapAt(cmd.stamp);
 					}
 
-					// 랩타임 발생 시 UI 스레드에 데이터 전송
 					if (snap.lapNo > 0)
 					{
 						auto payload = new LapPayload;
@@ -547,14 +512,12 @@ UINT AFX_CDECL CCalcStopwatchMFCDlg::StwThreadProc(LPVOID pParam)
 			running = dlg->m_stw.IsRunning();
 		}
 
-		// 실행 중이거나 데이터 변경이 있으면 UI 갱신 요청
 		if (running || processedAny || postedLap)
 		{
 			dlg->PostMessage(WM_APP_STW_UPDATED, 0, 0);
 			continue;
 		}
 
-		// 대기 중이어도 현재 시간(HH:MM:SS) 갱신을 위해 확인
 		CString now = dlg->m_stw.GetNowText();
 		if (now != lastNow)
 		{
@@ -572,7 +535,7 @@ LRESULT CCalcStopwatchMFCDlg::OnStwUpdated(WPARAM, LPARAM)
 	return 0;
 }
 
-// 랩타임 리스트 다시 그리기
+// 랩 리스트 재구성
 void CCalcStopwatchMFCDlg::RebuildLapList()
 {
 	m_lapList.SetRedraw(FALSE);
@@ -586,7 +549,6 @@ void CCalcStopwatchMFCDlg::RebuildLapList()
 		return;
 	}
 
-	// 최소/최대 시간 계산
 	int minIdx = -1, maxIdx = -1;
 	if (n >= 2)
 	{
@@ -630,7 +592,7 @@ LRESULT CCalcStopwatchMFCDlg::OnStwLap(WPARAM wParam, LPARAM)
 	row.lapText = payload->lapText;
 	row.totalText = payload->totalText;
 
-	m_laps.push_front(row); // 최신 랩을 맨 위에 추가
+	m_laps.push_front(row); // 최신 랩을 맨 위에
 	RebuildLapList();
 
 	delete payload;

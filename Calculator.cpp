@@ -1,53 +1,53 @@
-#include "pch.h"
+ï»¿#include "pch.h"
 #include "Calculator.h"
 #include <cmath>
 #include <tchar.h>
 
-// ge: ¿À·ù Ç¥±â¿ë ¹®ÀÚ¿­
-static const CString kErrDivZero = _T("0À¸·Î ³ª´­ ¼ö ¾ø½À´Ï´Ù");
-static const CString kErrInvalid = _T("Àß¸øµÈ ÀÔ·ÂÀÔ´Ï´Ù");
+// ê³„ì‚°ê¸° ì˜¤ë¥˜ ë©”ì‹œì§€
+static const CString kErrDivZero = _T("0ìœ¼ë¡œ ë‚˜ëˆŒ ìˆ˜ ì—†ìŠµë‹ˆë‹¤");
+static const CString kErrInvalid = _T("ì…ë ¥ì´ ì˜ëª»ë˜ì—ˆìŠµë‹ˆë‹¤.");
 
-// ge: »ı¼ºÀÚ - °è»ê±â ÀüÃ¼ ÃÊ±âÈ­ ¼öÇà
+// ì‹œì‘ ì‹œ ì „ì²´ ìƒíƒœ ì´ˆê¸°í™”
 Calculator::Calculator()
 {
-    Clear(); // ge: ÃÊ±âÈ­
+    Clear();
 }
 
-// ge: ÇöÀç °á°úÃ¢(Display) ¹®ÀÚ¿­ ¹İÈ¯
+// ê²°ê³¼ì°½ í‘œì‹œ
 CString Calculator::GetDisplay() const { return m_buf; }
 
-// ge: »ó´Ü½Ä/È÷½ºÅä¸®(RSHS) ¹®ÀÚ¿­ ¹İÈ¯
+// ìƒë‹¨ì‹/íˆìŠ¤í† ë¦¬ í‘œì‹œ
 CString Calculator::GetRSHS() const { return m_bufo; }
 
-// ge: Ä¿¸Çµå ÆĞÅÏ - ¸í·É Á¾·ù¿¡ µû¶ó ÀûÀıÇÑ ³»ºÎ ÇÔ¼ö È£Ãâ
+// ì…ë ¥ ëª…ë ¹ ë¼ìš°íŒ…
 void Calculator::Execute(const Command& cmd)
 {
     switch (cmd.kind)
     {
-    case CmdKind::Digit:        AppendDigit(cmd.digit); break;   // ge: ¼ıÀÚ ÀÔ·Â
-    case CmdKind::Decimal:      AppendDecimal(); break;          // ge: ¼Ò¼öÁ¡ ÀÔ·Â
-    case CmdKind::Op:           SetOperator(cmd.op); break;      // ge: ¿¬»êÀÚ ÀÔ·Â
-    case CmdKind::Equal:        Equal(); break;                  // ge: µîÈ£
-    case CmdKind::Clear:        Clear(); break;                  // ge: ÀüÃ¼ ÃÊ±âÈ­(C)
-    case CmdKind::ClearEntry:   ClearEntry(); break;             // ge: ÀÔ·Â¸¸ ÃÊ±âÈ­(CE)
-    case CmdKind::Backspace:    Backspace(); break;              // ge: ¹é½ºÆäÀÌ½º
-    case CmdKind::Percent:      Percent(); break;                // ge: ÆÛ¼¾Æ®
-    case CmdKind::ToggleSign:   ToggleSign(); break;             // ge: ºÎÈ£ ÀüÈ¯(¡¾)
-    case CmdKind::Reciprocal:   Reciprocal(); break;             // ge: 1/x
-    case CmdKind::Square:       Square(); break;                 // ge: x^2
-    case CmdKind::SqrtX:        SqrtX(); break;                  // ge: ¡îx
+    case CmdKind::Digit:        AppendDigit(cmd.digit); break;
+    case CmdKind::Decimal:      AppendDecimal(); break;
+    case CmdKind::Op:           SetOperator(cmd.op); break;
+    case CmdKind::Equal:        Equal(); break;
+    case CmdKind::Clear:        Clear(); break;
+    case CmdKind::ClearEntry:   ClearEntry(); break;
+    case CmdKind::Backspace:    Backspace(); break;
+    case CmdKind::Percent:      Percent(); break;
+    case CmdKind::ToggleSign:   ToggleSign(); break;
+    case CmdKind::Reciprocal:   Reciprocal(); break;
+    case CmdKind::Square:       Square(); break;
+    case CmdKind::SqrtX:        SqrtX(); break;
     default: break;
     }
 }
 
-// ge: '% ¹İº¹' ±âÁØ°ª(base)À» ¹«È¿È­
+// '%' ë°˜ë³µ ê¸°ì¤€ê°’ ì´ˆê¸°í™”
 void Calculator::InvalidatePercentBase()
 {
     m_percentBase = 0.0;
     m_percentBaseValid = false;
 }
 
-// ge: ¸ğµç »óÅÂ¸¦ ÃÊ±âÈ­ (C ¹öÆ°)
+// ì „ì²´ ì´ˆê¸°í™” (C)
 void Calculator::Clear()
 {
     m_buf = _T("0");
@@ -63,10 +63,10 @@ void Calculator::Clear()
     m_afterPercent = false;
     m_afterUnary = false;
 
-    InvalidatePercentBase(); // ge: '=' Á÷ÈÄ ÆÛ¼¾Æ® ¹İº¹ ±âÁØ ÃÊ±âÈ­
+    InvalidatePercentBase();
 }
 
-// ge: ¿¡·¯ ¸Ş½ÃÁö ¼³Á¤ + »óÅÂ¸¦ ¾ÈÀüÇÏ°Ô Á¤¸®
+// ì—ëŸ¬ ìƒíƒœë¡œ ì „í™˜
 void Calculator::SetError(const CString& msg)
 {
     m_error = true;
@@ -80,22 +80,22 @@ void Calculator::SetError(const CString& msg)
     m_afterPercent = false;
     m_afterUnary = false;
 
-    InvalidatePercentBase(); // ge: ¿¡·¯ ¹ß»ı ½Ã ÆÛ¼¾Æ® ¹İº¹ ±âÁØµµ ¹«È¿È­
+    InvalidatePercentBase();
 }
 
-// ge: ÇöÀç m_buf ¹®ÀÚ¿­À» ½Ç¼ö(double)·Î º¯È¯ÇÏ¿© ¹İÈ¯
+// í‘œì‹œ ë¬¸ìì—´ -> ê°’
 double Calculator::GetValue() const
 {
     return _tstof(m_buf);
 }
 
-// ge: ½Ç¼ö¸¦ ±ò²ûÇÑ ¹®ÀÚ¿­·Î Æ÷¸ËÆÃ (¼Ò¼öÁ¡ Á¤¸® µî)
+// ê°’ -> í‘œì‹œ ë¬¸ìì—´ (í•„ìš”í•œ ì •ê·œí™” í¬í•¨)
 CString Calculator::FormatNumber(double v) const
 {
-    // ge: ¾ÆÁÖ ÀÛÀº °ªÀº 0À¸·Î ½º³À
+    // ì•„ì£¼ ì‘ì€ ê°’ì€ 0ìœ¼ë¡œ ì •ë¦¬
     if (std::fabs(v) < 1e-15) v = 0.0;
 
-    // ge: Á¤¼ö¿¡ ¸Å¿ì °¡±î¿ì¸é Á¤¼ö·Î ½º³À (Ç¥½Ã ±ò²ûÇÏ°Ô)
+    // ì •ìˆ˜ì— ë§¤ìš° ê°€ê¹Œìš°ë©´ ì •ìˆ˜ë¡œ ì •ë¦¬
     const double scale = (std::fabs(v) < 1.0) ? 1.0 : std::fabs(v);
     const double nearestInt = std::round(v);
     if (std::fabs(v - nearestInt) <= 1e-12 * scale)
@@ -107,13 +107,13 @@ CString Calculator::FormatNumber(double v) const
     return s;
 }
 
-// ge: m_buf¿¡ ¼ıÀÚ °ªÀ» Ç¥½Ã ¹®ÀÚ¿­·Î ¼¼ÆÃ
+// ê²°ê³¼ì°½ì— ê°’ ë°˜ì˜
 void Calculator::SetValue(double v)
 {
     m_buf = FormatNumber(v);
 }
 
-// ge: ¼ıÀÚ ¹®ÀÚ¿­À» È÷½ºÅä¸®/Ç¥½Ã¿ëÀ¸·Î Á¤±ÔÈ­(0.00000 -> 0)
+// ìˆ«ì ë¬¸ìì—´ ì •ê·œí™” (0.00000 -> 0)
 CString Calculator::NormalizeNumericText(const CString& rawText, bool keepTrailingDot) const
 {
     CString t = rawText;
@@ -121,10 +121,10 @@ CString Calculator::NormalizeNumericText(const CString& rawText, bool keepTraili
 
     if (t.IsEmpty()) return _T("0");
 
-    // ge: "2." °°Àº ÀÔ·ÂÀº Ç¥Çö À¯Áö ¿É¼ÇÀÌ ÄÑÁ® ÀÖÀ¸¸é ±×´ë·Î µÒ
+    // "2." ê°™ì€ ì…ë ¥ì€ í•„ìš”í•˜ë©´ ìœ ì§€
     if (keepTrailingDot && t.Right(1) == _T(".")) return t;
 
-    // ge: ¼ıÀÚ ÇüÅÂ°¡ ¾Æ´Ï¸é(¿¡·¯ ¹®ÀÚ¿­ µî) ±×´ë·Î »ç¿ë
+    // ìˆ«ì í˜•íƒœê°€ ì•„ë‹ˆë©´ ê·¸ëŒ€ë¡œ ë‘ 
     bool hasDigit = false;
     for (int i = 0; i < t.GetLength(); ++i)
     {
@@ -138,26 +138,28 @@ CString Calculator::NormalizeNumericText(const CString& rawText, bool keepTraili
     return FormatNumber(_tstof(t));
 }
 
-// ge: »ç¿ëÀÚ ÀÔ·ÂÀÌ ¼ıÀÚ ÇüÅÂ¸é Ç¥½ÃÃ¢µµ Á¤±ÔÈ­(0.00000 -> 0)
+// ì—°ì‚° ì§ì „ í‘œì‹œ ì •ë¦¬
 void Calculator::NormalizeDisplayIfPossible()
 {
-    // ge: »õ ÀÔ·Â »óÅÂ¸é ÀÌ¹Ì 0/Á¤¸®µÈ »óÅÂÀÌ¹Ç·Î °Çµå¸®Áö ¾ÊÀ½
+    // ìƒˆ ì…ë ¥ ì‹œì‘ ìƒíƒœë©´ ê±´ë“œë¦¬ì§€ ì•ŠìŒ
     if (m_newEntry) return;
 
-    // ge: ´ÜÇ×/% °á°ú Ç¥½Ã Áß¿¡´Â Ç¥ÁØ °è»ê±âÃ³·³ Ç¥½Ã À¯Áö(¿øÇÏ¸é ¿©±â¼­µµ Á¤±ÔÈ­ °¡´É)
+    // ë‹¨í•­/í¼ì„¼íŠ¸ ì§í›„ëŠ” í‘œì‹œ ìœ ì§€
     if (m_afterUnary || m_afterPercent) return;
 
-    m_buf = NormalizeNumericText(m_buf, true);
+    // ì—°ì‚°(=, ì—°ì‚°ì ì…ë ¥) ì§ì „ trailing '.' ì œê±°
+    m_buf = NormalizeNumericText(m_buf, false);
 }
 
-// ge: Æ¯¼ö ¿¬»ê(%/´ÜÇ×) Á÷ÈÄ »õ ÀÔ·Â ½ÃÀÛ °øÅë Ã³¸®
+
+// íŠ¹ìˆ˜ ì—°ì‚°(%/ë‹¨í•­) ì§í›„ ìƒˆ ì…ë ¥ ì‹œì‘ ì²˜ë¦¬
 bool Calculator::BeginNewEntryFromSpecial(const CString& newText)
 {
     if (!(m_afterPercent || m_afterUnary)) return false;
 
     if (m_pendingOp == Op::None) History_Reset();
 
-    InvalidatePercentBase(); // ge: »õ ÀÔ·Â ½ÃÀÛÀÌ¹Ç·Î '% ¹İº¹ ±âÁØ'Àº ²÷´Â´Ù
+    InvalidatePercentBase();
 
     m_buf = newText;
     m_newEntry = false;
@@ -166,7 +168,7 @@ bool Calculator::BeginNewEntryFromSpecial(const CString& newText)
     return true;
 }
 
-// ge: ¼ıÀÚ ÀÔ·Â Ã³¸®
+// ìˆ«ì ì…ë ¥
 void Calculator::AppendDigit(int d)
 {
     if (d < 0 || d > 9) return;
@@ -192,7 +194,7 @@ void Calculator::AppendDigit(int d)
     m_buf += first;
 }
 
-// ge: ¼Ò¼öÁ¡ ÀÔ·Â Ã³¸®
+// ì†Œìˆ˜ì  ì…ë ¥
 void Calculator::AppendDecimal()
 {
     if (m_error) return;
@@ -210,12 +212,12 @@ void Calculator::AppendDecimal()
     m_buf += _T(".");
 }
 
-// ge: ¹é½ºÆäÀÌ½º Ã³¸®
+// ë°±ìŠ¤í˜ì´ìŠ¤
 void Calculator::Backspace()
 {
     if (m_error) return;
 
-    // ge: [Áß¿ä] °è»ê °á°ú°ª(·çÆ®, % µî)ÀÌ ¶°ÀÖ´Â »óÅÂ¿¡¼± ¹é½ºÆäÀÌ½º°¡ ¾È ¸ÔÈ÷µµ·Ï ÇÔ (Ç¥ÁØ °è»ê±â µ¿ÀÛ)
+    // ê²°ê³¼ í‘œì‹œ ì¤‘(ë£¨íŠ¸, %)ì—ëŠ” í‘œì¤€ ê³„ì‚°ê¸°ì²˜ëŸ¼ ë¬´ì‹œ
     if (m_afterUnary || m_afterPercent) return;
 
     if (m_newEntry) return;
@@ -232,34 +234,57 @@ void Calculator::Backspace()
     if (m_buf == _T("-")) { m_buf = _T("0"); m_newEntry = true; }
 }
 
-// ge: +/- ºÎÈ£ Åä±Û
+// ë¶€í˜¸ í† ê¸€(Â±)
 void Calculator::ToggleSign()
 {
     if (m_error) return;
 
+    // ì´í•­ ì—°ì‚°ì ì§í›„ì—” RHS ì…ë ¥ ì‹œì‘ìœ¼ë¡œ ì²˜ë¦¬
+    if (m_pendingOp != Op::None && m_newEntry)
+    {
+        m_newEntry = false;
+        m_afterPercent = false;
+        m_afterUnary = false;
+    }
+
+    // '=' ì§í›„ë¼ë©´ íˆìŠ¤í† ë¦¬ë„ í•¨ê»˜ ê°±ì‹ 
+    const bool evaluated = (m_pendingOp == Op::None) && History_IsJustEvaluated();
+
     double v = GetValue();
-    if (std::fabs(v) < 1e-15) return;
+    if (std::fabs(v) < 1e-15)
+    {
+        // 0ì€ ë¶€í˜¸ ë³€í™” ì—†ìŒ
+        if (evaluated)
+            m_bufo = NormalizeNumericText(m_buf, true) + _T(" =");
+        return;
+    }
 
     if (m_buf.GetLength() > 0 && m_buf[0] == _T('-'))
         m_buf.Delete(0, 1);
     else
         m_buf = _T("-") + m_buf;
+
+    // '=' ì§í›„ Â± í† ê¸€ ì‹œ history ê°±ì‹ 
+    if (evaluated)
+        m_bufo = NormalizeNumericText(m_buf, true) + _T(" =");
 }
 
-// ge: ¿¬»êÀÚ ±âÈ£ ¹®ÀÚ¿­(Ç¥ÁØ °è»ê±âÃ³·³ ¡¿ ¡À µî) ¹İÈ¯
+
+
+// ì—°ì‚°ì ê¸°í˜¸ ë¬¸ìì—´
 CString Calculator::OpSymbol(Op op) const
 {
     switch (op)
     {
     case Op::Add: return _T("+");
     case Op::Sub: return _T("-");
-    case Op::Mul: return _T("\u00D7"); // ge: °öÇÏ±â(¡¿)
-    case Op::Div: return _T("\u00F7"); // ge: ³ª´©±â(¡À)
+    case Op::Mul: return _T("\u00D7");
+    case Op::Div: return _T("\u00F7");
     default: return _T("");
     }
 }
 
-// ge: ½ÇÁ¦ ÀÌÇ× ¿¬»ê ¼öÇà
+// ì´í•­ ì—°ì‚° ìˆ˜í–‰
 double Calculator::ApplyBinary(Op op, double a, double b, bool& err) const
 {
     err = false;
@@ -276,7 +301,7 @@ double Calculator::ApplyBinary(Op op, double a, double b, bool& err) const
     }
 }
 
-// ge: È÷½ºÅä¸® ¹®ÀÚ¿­ÀÌ ¿¬»êÀÚ ÅäÅ«À¸·Î ³¡³ª´ÂÁö °Ë»ç (¿¬»êÀÚ ±³Ã¼¿ë)
+// íˆìŠ¤í† ë¦¬ ëì´ ì—°ì‚°ì í† í°ì¸ì§€ í™•ì¸
 bool Calculator::EndsWithOpToken(const CString& s) const
 {
     CString t = s;
@@ -294,7 +319,7 @@ bool Calculator::EndsWithOpToken(const CString& s) const
         (t.Right(div.GetLength()) == div);
 }
 
-// ge: È÷½ºÅä¸® ³¡ÀÇ ¿¬»êÀÚ ÅäÅ«À» »õ ¿¬»êÀÚ ÅäÅ«À¸·Î ±³Ã¼
+// íˆìŠ¤í† ë¦¬ ë ì—°ì‚°ì êµì²´
 void Calculator::ReplaceTrailingOpToken(const CString& opToken)
 {
     CString t = m_bufo;
@@ -307,13 +332,13 @@ void Calculator::ReplaceTrailingOpToken(const CString& opToken)
         m_bufo = FormatNumber(m_acc) + _T(" ") + opToken;
 }
 
-// ge: È÷½ºÅä¸® ÃÊ±âÈ­
+// íˆìŠ¤í† ë¦¬ ì´ˆê¸°í™”
 void Calculator::History_Reset()
 {
     m_bufo = _T("");
 }
 
-// ge: È÷½ºÅä¸®°¡ ¹æ±İ '='·Î Æò°¡µÈ »óÅÂÀÎÁö °Ë»ç
+// íˆìŠ¤í† ë¦¬ê°€ '='ë¡œ ëë‚˜ëŠ”ì§€ í™•ì¸
 bool Calculator::History_IsJustEvaluated() const
 {
     CString t = m_bufo;
@@ -322,27 +347,27 @@ bool Calculator::History_IsJustEvaluated() const
     return (t.Right(1) == _T("="));
 }
 
-// ge: '=' Á÷ÈÄ¶ó¸é È÷½ºÅä¸®¸¦ ºñ¿ò (´ÙÀ½ »õ °è»ê ½ÃÀÛ¿ë)
+// '=' ì§í›„ë©´ íˆìŠ¤í† ë¦¬ ë¹„ì›€
 void Calculator::History_ClearIfJustEvaluated()
 {
     if (History_IsJustEvaluated())
         History_Reset();
 }
 
-// ge: "lhsText op" ÇüÅÂ·Î ´ë±â »óÅÂ È÷½ºÅä¸® »ı¼º(ÅØ½ºÆ® ±â¹İ)
+// "lhs op" í˜•íƒœë¡œ ëŒ€ê¸° íˆìŠ¤í† ë¦¬ ìƒì„±
 void Calculator::History_SetPendingText(const CString& lhsText, Op op)
 {
     m_bufo = lhsText + _T(" ") + OpSymbol(op);
 }
 
-// ge: "lhsText op rhsText" ¶Ç´Â "lhsText op rhsText =" ÇüÅÂ·Î È÷½ºÅä¸® »ı¼º(ÅØ½ºÆ® ±â¹İ)
+// "lhs op rhs" ë˜ëŠ” "lhs op rhs =" í˜•íƒœë¡œ íˆìŠ¤í† ë¦¬ ìƒì„±
 void Calculator::History_SetBinaryText(const CString& lhsText, Op op, const CString& rhsText, bool withEqual)
 {
     m_bufo = lhsText + _T(" ") + OpSymbol(op) + _T(" ") + rhsText;
     if (withEqual) m_bufo += _T(" =");
 }
 
-// ge: ÇöÀç È÷½ºÅä¸® ³¡¿¡ rhs ÅØ½ºÆ®¸¦ ºÙ¿© ¸¶¹«¸®(= Æ÷ÇÔ ¿©ºÎ ¼±ÅÃ)
+// íˆìŠ¤í† ë¦¬ ëì— rhsë¥¼ ë¶™ì—¬ ë§ˆë¬´ë¦¬
 void Calculator::History_AppendRhsText(const CString& rhsText, bool withEqual)
 {
     CString t = m_bufo;
@@ -365,27 +390,27 @@ void Calculator::History_AppendRhsText(const CString& rhsText, bool withEqual)
         m_bufo += _T(" =");
 }
 
-// ge: »çÄ¢¿¬»ê ¹öÆ° ´­·¶À» ¶§ Ã³¸®
+// ì‚¬ì¹™ì—°ì‚° ì…ë ¥ ì²˜ë¦¬
 void Calculator::SetOperator(Op op)
 {
     if (m_error) return;
 
-    // ge: [¼öÁ¤] 0.00000 ÀÔ·Â ÈÄ + ´­·¶À» ¶§ Ç¥½ÃÃ¢µµ 0À¸·Î Á¤±ÔÈ­
+    // ì—°ì‚° ì§ì „ í‘œì‹œ ì •ë¦¬
     NormalizeDisplayIfPossible();
 
-    InvalidatePercentBase(); // ge: ¿¬»êÀÚ ÀÔ·ÂÀº »õ·Î¿î ½ÄÀ» ½ÃÀÛÇÏ´Â Èå¸§ÀÌ¹Ç·Î '% ¹İº¹ ±âÁØ'Àº ²÷´Â´Ù
+    InvalidatePercentBase();
     History_ClearIfJustEvaluated();
 
     const CString opTok = OpSymbol(op);
     const double entry = GetValue();
 
-    // ge: ½ÄÀÇ ½ÃÀÛ (¿¹: "3 +")
+    // ì‹ ì‹œì‘ (ì˜ˆ: "3 +")
     if (m_pendingOp == Op::None)
     {
         m_acc = entry;
         m_pendingOp = op;
 
-        // ge: [¼öÁ¤] È÷½ºÅä¸®´Â Ç×»ó Á¤±ÔÈ­(0.00000 -> 0)
+        // íˆìŠ¤í† ë¦¬ëŠ” ì •ê·œí™”ëœ í…ìŠ¤íŠ¸ ì‚¬ìš©
         if (!m_bufo.IsEmpty() && m_afterUnary)
             History_SetPendingText(m_bufo, op);
         else
@@ -395,7 +420,7 @@ void Calculator::SetOperator(Op op)
         return;
     }
 
-    // ge: ¿¬»êÀÚ ±³Ã¼ (¿¹: + ´­·¶´Ù°¡ - ´©¸§)
+    // ì—°ì‚°ì êµì²´ (ì˜ˆ: + -> -)
     if (m_newEntry)
     {
         m_pendingOp = op;
@@ -404,7 +429,7 @@ void Calculator::SetOperator(Op op)
         return;
     }
 
-    // ge: ¿¬¼â °è»ê (¿¹: "3 + 5" »óÅÂ¿¡¼­ '*' ´©¸§)
+    // ì—°ì‡„ ê³„ì‚° (ì˜ˆ: "3 + 5" ìƒíƒœì—ì„œ '*' ì…ë ¥)
     bool err = false;
     const double res = ApplyBinary(m_pendingOp, m_acc, entry, err);
     if (err) { SetError(kErrDivZero); return; }
@@ -417,12 +442,12 @@ void Calculator::SetOperator(Op op)
     m_newEntry = true;
 }
 
-// ge: µîÈ£(=) Ã³¸®
+// '=' ì²˜ë¦¬
 void Calculator::Equal()
 {
     if (m_error) return;
 
-    // ge: [¼öÁ¤] 0.00000 ÀÔ·Â ÈÄ = ´­·¶À» ¶§ Ç¥½ÃÃ¢µµ 0À¸·Î Á¤±ÔÈ­
+    // ì—°ì‚° ì§ì „ í‘œì‹œ ì •ë¦¬
     NormalizeDisplayIfPossible();
 
     if (m_pendingOp != Op::None)
@@ -430,7 +455,7 @@ void Calculator::Equal()
         const double left = m_acc;
         const double rhs = m_newEntry ? left : GetValue();
 
-        // ge: [¼öÁ¤] ¿ìÇ× Ç¥±âµµ Á¤±ÔÈ­
+        // ìš°í•­ í‘œê¸°ë„ ì •ê·œí™”
         const CString rhsStr = m_newEntry ? FormatNumber(rhs) : NormalizeNumericText(m_buf, true);
 
         bool err = false;
@@ -457,7 +482,7 @@ void Calculator::Equal()
         return;
     }
 
-    // ge: ¿£ÅÍ ¿¬Å¸ ½Ã ÀÌÀü ¿¬»ê ¹İº¹
+    // ì—”í„° ì—°íƒ€ ì‹œ ì´ì „ ì—°ì‚° ë°˜ë³µ
     if (m_lastOp != Op::None)
     {
         const double a = GetValue();
@@ -479,7 +504,7 @@ void Calculator::Equal()
 
     if (History_IsJustEvaluated()) return;
 
-    // ge: [¼öÁ¤] ´Üµ¶ '='¿¡¼­µµ È÷½ºÅä¸® ¼ıÀÚ Á¤±ÔÈ­
+    // ë‹¨ë… '='ì—ì„œë„ íˆìŠ¤í† ë¦¬ ì •ê·œí™”
     if (!m_bufo.IsEmpty() && m_afterUnary) m_bufo += _T(" =");
     else m_bufo = NormalizeNumericText(m_buf, true) + _T(" =");
 
@@ -491,7 +516,7 @@ void Calculator::Equal()
     InvalidatePercentBase();
 }
 
-// ge: ÆÛ¼¾Æ®(%) Ã³¸®
+// '%' ì²˜ë¦¬
 void Calculator::Percent()
 {
     if (m_error) return;
@@ -506,7 +531,7 @@ void Calculator::Percent()
                 m_percentBaseValid = true;
             }
 
-            // ge: base°¡ 0ÀÌ¸é 0%´Â ÀÇ¹Ì ¾øÀ¸´Ï 0 À¯Áö + È÷½ºÅä¸® ¾îÁö·´È÷Áö ¾ÊÀ½
+            // baseê°€ 0ì´ë©´ 0 ìœ ì§€
             if (std::fabs(m_percentBase) < 1e-15)
             {
                 SetValue(0.0);
@@ -559,7 +584,7 @@ void Calculator::Percent()
     InvalidatePercentBase();
 }
 
-// ge: CE(ÀÔ·Â ÃÊ±âÈ­) Ã³¸®
+// CE(ì…ë ¥ ì´ˆê¸°í™”)
 void Calculator::ClearEntry()
 {
     if (m_error) { Clear(); return; }
@@ -574,22 +599,22 @@ void Calculator::ClearEntry()
     InvalidatePercentBase();
 }
 
-// ge: ´ÜÇ× ¿¬»ê¿¡¼­ »ç¿ëÇÒ ÇÇ¿¬»êÀÚ(v)¿Í Ç¥±â ¹®ÀÚ¿­(argStr)À» ÁØºñ
+// ë‹¨í•­ ì—°ì‚°ì— ì‚¬ìš©í•  í”¼ì—°ì‚°ì/í‘œê¸° ë¬¸ìì—´ ì¤€ë¹„
 void Calculator::GetUnaryOperand(double& v, CString& argStr) const
 {
     if (m_pendingOp != Op::None && m_newEntry)
     {
         v = m_acc;
-        argStr = FormatNumber(m_acc); // ge: ´ë±â »óÅÂ(ÁÂÇ× op)¿¡¼­´Â ÁÂÇ×À» ´ë»óÀ¸·Î
+        argStr = FormatNumber(m_acc);
     }
     else
     {
         v = GetValue();
-        argStr = NormalizeNumericText(m_buf, true); // ge: È÷½ºÅä¸® Ç¥±â´Â Ç×»ó Á¤±ÔÈ­
+        argStr = NormalizeNumericText(m_buf, true);
     }
 }
 
-// ge: ´ÜÇ× ¿¬»ê °á°ú¸¦ È÷½ºÅä¸®¿¡ Ç¥±â(ÇöÀç ½Ä/¿¬»êÀÚ »óÅÂ¿¡ ¸ÂÃç °áÇÕ)
+// ë‹¨í•­ ì—°ì‚° ê²°ê³¼ë¥¼ íˆìŠ¤í† ë¦¬ì— ê²°í•©
 void Calculator::SetUnaryHistory(const CString& expr)
 {
     if (m_pendingOp != Op::None)
@@ -606,7 +631,7 @@ void Calculator::SetUnaryHistory(const CString& expr)
     }
 }
 
-// ge: ´ÜÇ× ¿¬»ê(1/x, Á¦°ö, Á¦°ö±Ù) °øÅë Ã³¸®
+// ë‹¨í•­ ì—°ì‚° ê³µí†µ ì²˜ë¦¬
 void Calculator::ApplyUnary(UnaryKind kind)
 {
     if (m_error) return;
@@ -647,9 +672,9 @@ void Calculator::ApplyUnary(UnaryKind kind)
     InvalidatePercentBase();
 }
 
-// ge: 1/x ½ÇÇà
+// 1/x
 void Calculator::Reciprocal() { ApplyUnary(UnaryKind::Reciprocal); }
-// ge: Á¦°ö ½ÇÇà
+// ì œê³±
 void Calculator::Square() { ApplyUnary(UnaryKind::Square); }
-// ge: Á¦°ö±Ù ½ÇÇà
+// ì œê³±ê·¼
 void Calculator::SqrtX() { ApplyUnary(UnaryKind::Sqrt); }
