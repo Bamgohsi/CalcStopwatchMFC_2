@@ -56,6 +56,7 @@ BOOL CCalcStopwatchMFCDlg::OnInitDialog()
 {
 	CDialogEx::OnInitDialog();
 
+	// 초기 UI 상태/캐시 값 셋업
 	SetIcon(m_hIcon, TRUE);
 	SetIcon(m_hIcon, FALSE);
 
@@ -70,7 +71,7 @@ BOOL CCalcStopwatchMFCDlg::OnInitDialog()
 	m_lastRcEnabled = (BOOL)-1;
 	m_lastClearEnabled = (BOOL)-1;
 
-	// 랩 리스트 초기화
+	// 랩 리스트 초기화 (열 구성/스타일)
 	m_lapList.ModifyStyle(0, LVS_REPORT);
 	m_lapList.DeleteAllItems();
 	while (m_lapList.DeleteColumn(0)) {}
@@ -82,13 +83,30 @@ BOOL CCalcStopwatchMFCDlg::OnInitDialog()
 	DWORD ex = m_lapList.GetExtendedStyle();
 	m_lapList.SetExtendedStyle(ex | LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
 
+	// 초기 표시 갱신
 	UpdateCalcUI();
 	UpdateStopwatchUI();
 
 	if (GetDlgItem(IDC_STWC_RC))    GetDlgItem(IDC_STWC_RC)->EnableWindow(FALSE);
 	if (GetDlgItem(IDC_STWC_CLEAR)) GetDlgItem(IDC_STWC_CLEAR)->EnableWindow(FALSE);
 
-	// 워커 스레드 시작
+	// 현재값 입력창 폰트 크게 (24pt)
+	m_calcResultFont.CreatePointFont(240, _T("Segoe UI"));
+	if (auto p = GetDlgItem(IDC_CAL_RESULT))
+		p->SetFont(&m_calcResultFont);
+
+	// 스톱워치 경과 시간 표시 폰트 크게 (40pt)
+	m_stwResultFont.CreatePointFont(400, _T("Segoe UI"));
+	if (auto p = GetDlgItem(IDC_STWC_RESULT))
+		p->SetFont(&m_stwResultFont);
+
+	// 스톱워치 라벨 폰트 (13pt)
+	m_stwLabelFont.CreatePointFont(130, _T("Segoe UI"));
+	if (auto p = GetDlgItem(IDC_STWC_H)) p->SetFont(&m_stwLabelFont);
+	if (auto p = GetDlgItem(IDC_STWC_M)) p->SetFont(&m_stwLabelFont);
+	if (auto p = GetDlgItem(IDC_STWC_S)) p->SetFont(&m_stwLabelFont);
+
+	// 워커 스레드 시작 (계산기/스톱워치)
 	m_calcExit = false;
 	m_stwExit = false;
 
@@ -106,6 +124,7 @@ BOOL CCalcStopwatchMFCDlg::PreTranslateMessage(MSG* pMsg)
 {
 	if (pMsg->message == WM_KEYDOWN)
 	{
+		// 특수키 -> 계산기 버튼 매핑
 		switch (pMsg->wParam)
 		{
 		case VK_RETURN: // 엔터 -> '='
@@ -131,6 +150,7 @@ BOOL CCalcStopwatchMFCDlg::PreTranslateMessage(MSG* pMsg)
 	}
 	else if (pMsg->message == WM_CHAR)
 	{
+		// 문자 입력 -> 계산기 버튼 매핑
 		UINT nChar = static_cast<UINT>(pMsg->wParam);
 
 		if (nChar >= '0' && nChar <= '9')
@@ -176,6 +196,7 @@ BOOL CCalcStopwatchMFCDlg::PreTranslateMessage(MSG* pMsg)
 
 void CCalcStopwatchMFCDlg::OnDestroy()
 {
+	// 스레드 종료 플래그 + 이벤트 시그널
 	m_calcExit = true;
 	m_stwExit = true;
 
@@ -184,6 +205,7 @@ void CCalcStopwatchMFCDlg::OnDestroy()
 
 	if (m_calcThread)
 	{
+		// 스레드 종료 대기 후 정리
 		::WaitForSingleObject(m_calcThread->m_hThread, INFINITE);
 		delete m_calcThread;
 		m_calcThread = nullptr;
@@ -191,6 +213,7 @@ void CCalcStopwatchMFCDlg::OnDestroy()
 
 	if (m_stwThread)
 	{
+		// 스레드 종료 대기 후 정리
 		::WaitForSingleObject(m_stwThread->m_hThread, INFINITE);
 		delete m_stwThread;
 		m_stwThread = nullptr;
@@ -230,6 +253,7 @@ HCURSOR CCalcStopwatchMFCDlg::OnQueryDragIcon()
 // 계산기 UI 갱신
 void CCalcStopwatchMFCDlg::UpdateCalcUI()
 {
+	// 계산기 상태 읽기 (스레드 세이프)
 	CString disp, hist;
 	{
 		CSingleLock lock(&m_calcStateCs, TRUE);
@@ -239,12 +263,14 @@ void CCalcStopwatchMFCDlg::UpdateCalcUI()
 
 	if (disp != m_lastCalcDisp)
 	{
+		// 결과창 갱신
 		SetDlgItemText(IDC_CAL_RESULT, disp);
 		m_lastCalcDisp = disp;
 	}
 
 	if (hist != m_lastCalcHist)
 	{
+		// 히스토리(상단식) 갱신
 		SetDlgItemText(IDC_CAL_RS_HS, hist);
 		m_lastCalcHist = hist;
 	}
@@ -258,9 +284,11 @@ void CCalcStopwatchMFCDlg::UpdateStopwatchUI()
 	bool running = false;
 	bool resetPending = false;
 
+	// 현재 시각은 스레드 동기화 없이 조회
 	now = m_stw.GetNowText();
 
 	{
+		// 경과 시간/상태는 동기화 후 조회
 		CSingleLock lock(&m_stwStateCs, TRUE);
 		running = m_stw.IsRunning();
 		resetPending = m_stwResetPending;
@@ -269,12 +297,14 @@ void CCalcStopwatchMFCDlg::UpdateStopwatchUI()
 
 	if (now != m_lastNow)
 	{
+		// 상단 현재 시각 갱신
 		SetDlgItemText(IDC_TIME, now);
 		m_lastNow = now;
 	}
 
 	if (elapsed != m_lastElapsed)
 	{
+		// 스톱워치 경과 시간 갱신
 		SetDlgItemText(IDC_STWC_RESULT, elapsed);
 		m_lastElapsed = elapsed;
 	}
@@ -286,6 +316,7 @@ void CCalcStopwatchMFCDlg::UpdateStopwatchUI()
 
 	if (m_lastRcEnabled != rcEnabled)
 	{
+		// 기록 버튼 활성/비활성
 		if (GetDlgItem(IDC_STWC_RC))
 			GetDlgItem(IDC_STWC_RC)->EnableWindow(rcEnabled);
 		m_lastRcEnabled = rcEnabled;
@@ -293,6 +324,7 @@ void CCalcStopwatchMFCDlg::UpdateStopwatchUI()
 
 	if (m_lastClearEnabled != clearEnabled)
 	{
+		// 초기화 버튼 활성/비활성
 		if (GetDlgItem(IDC_STWC_CLEAR))
 			GetDlgItem(IDC_STWC_CLEAR)->EnableWindow(clearEnabled);
 		m_lastClearEnabled = clearEnabled;
@@ -302,6 +334,7 @@ void CCalcStopwatchMFCDlg::UpdateStopwatchUI()
 // 계산기 명령 큐
 void CCalcStopwatchMFCDlg::EnqueueCalc(const Calculator::Command& cmd)
 {
+	// UI -> 계산기 스레드 명령 큐 삽입
 	{
 		CSingleLock lock(&m_calcQueueCs, TRUE);
 		m_calcQueue.push_back(cmd);
@@ -316,6 +349,7 @@ UINT AFX_CDECL CCalcStopwatchMFCDlg::CalcThreadProc(LPVOID pParam)
 
 	while (!dlg->m_calcExit)
 	{
+		// 명령 도착 대기
 		dlg->m_calcEvent.Lock();
 		if (dlg->m_calcExit) break;
 
@@ -337,11 +371,13 @@ UINT AFX_CDECL CCalcStopwatchMFCDlg::CalcThreadProc(LPVOID pParam)
 			if (!hasCmd) break;
 
 			{
+				// 계산기 상태 변경은 단일 임계구역에서 처리
 				CSingleLock lock(&dlg->m_calcStateCs, TRUE);
 				dlg->m_calc.Execute(cmd);
 			}
 		}
 
+		// UI 갱신 요청
 		dlg->PostMessage(WM_APP_CALC_UPDATED, 0, 0);
 	}
 
@@ -356,6 +392,7 @@ LRESULT CCalcStopwatchMFCDlg::OnCalcUpdated(WPARAM, LPARAM)
 
 void CCalcStopwatchMFCDlg::OnCalcButtonRange(UINT nID)
 {
+	// 버튼 ID -> 명령 매핑
 	const int idx = (int)nID - (int)IDC_CAL_BTN1;
 	if (idx < 0 || idx >= 24) return;
 
@@ -414,6 +451,7 @@ void CCalcStopwatchMFCDlg::OnCalcButtonRange(UINT nID)
 // 스톱워치 명령 큐
 void CCalcStopwatchMFCDlg::EnqueueStw(const SwCommand& cmd)
 {
+	// UI -> 스톱워치 스레드 명령 큐 삽입
 	{
 		CSingleLock lock(&m_stwQueueCs, TRUE);
 		m_stwQueue.push_back(cmd);
@@ -423,6 +461,7 @@ void CCalcStopwatchMFCDlg::EnqueueStw(const SwCommand& cmd)
 
 void CCalcStopwatchMFCDlg::ApplyStwCommand(const SwCommand& cmd)
 {
+	// 스톱워치 상태 변경 (스레드 내부 처리)
 	switch (cmd.kind)
 	{
 	case SwCmdKind::ToggleStartStop:
@@ -448,6 +487,7 @@ UINT AFX_CDECL CCalcStopwatchMFCDlg::StwThreadProc(LPVOID pParam)
 
 	while (!dlg->m_stwExit)
 	{
+		// 짧은 주기로 이벤트 대기 (running 상태에서 주기적 갱신)
 		BOOL signaled = dlg->m_stwEvent.Lock(16);
 		if (dlg->m_stwExit) break;
 
@@ -476,6 +516,7 @@ UINT AFX_CDECL CCalcStopwatchMFCDlg::StwThreadProc(LPVOID pParam)
 
 				if (cmd.kind == SwCmdKind::Lap)
 				{
+					// 랩 스냅샷 생성
 					Stopwatch::LapSnapshot snap;
 					{
 						CSingleLock lock(&dlg->m_stwStateCs, TRUE);
@@ -489,17 +530,20 @@ UINT AFX_CDECL CCalcStopwatchMFCDlg::StwThreadProc(LPVOID pParam)
 						payload->lapCounter = snap.lapCounter;
 
 						{
+							// 랩 텍스트는 일관된 포맷으로 생성
 							CSingleLock lock(&dlg->m_stwStateCs, TRUE);
 							payload->lapText = dlg->m_stw.FormatCounter(snap.lapCounter);
 							payload->totalText = dlg->m_stw.FormatCounter(snap.totalCounter);
 						}
 
+						// UI 스레드로 전달
 						dlg->PostMessage(WM_APP_STW_LAP, (WPARAM)payload, 0);
 						postedLap = true;
 					}
 				}
 				else
 				{
+					// 시작/정지/리셋 등은 상태 변경만 수행
 					CSingleLock lock(&dlg->m_stwStateCs, TRUE);
 					dlg->ApplyStwCommand(cmd);
 				}
@@ -514,6 +558,7 @@ UINT AFX_CDECL CCalcStopwatchMFCDlg::StwThreadProc(LPVOID pParam)
 
 		if (running || processedAny || postedLap)
 		{
+			// 경과 시간 갱신 필요
 			dlg->PostMessage(WM_APP_STW_UPDATED, 0, 0);
 			continue;
 		}
@@ -522,6 +567,7 @@ UINT AFX_CDECL CCalcStopwatchMFCDlg::StwThreadProc(LPVOID pParam)
 		if (now != lastNow)
 		{
 			lastNow = now;
+			// 현재 시각이 변할 때만 갱신
 			dlg->PostMessage(WM_APP_STW_UPDATED, 0, 0);
 		}
 	}
@@ -538,6 +584,7 @@ LRESULT CCalcStopwatchMFCDlg::OnStwUpdated(WPARAM, LPARAM)
 // 랩 리스트 재구성
 void CCalcStopwatchMFCDlg::RebuildLapList()
 {
+	// 랩 리스트 전체 재구성 (최신이 상단)
 	m_lapList.SetRedraw(FALSE);
 	m_lapList.DeleteAllItems();
 
@@ -567,6 +614,7 @@ void CCalcStopwatchMFCDlg::RebuildLapList()
 
 	for (int i = 0; i < n; i++)
 	{
+		// 빠름/느림 표시
 		CString col0;
 		col0.Format(_T("%d"), m_laps[i].lapNo);
 		if (i == minIdx) col0 += _T("  가장 빠름");
@@ -583,6 +631,7 @@ void CCalcStopwatchMFCDlg::RebuildLapList()
 
 LRESULT CCalcStopwatchMFCDlg::OnStwLap(WPARAM wParam, LPARAM)
 {
+	// 스레드에서 전달된 랩 정보 반영
 	auto payload = reinterpret_cast<LapPayload*>(wParam);
 	if (!payload) return 0;
 
@@ -601,6 +650,7 @@ LRESULT CCalcStopwatchMFCDlg::OnStwLap(WPARAM wParam, LPARAM)
 
 void CCalcStopwatchMFCDlg::OnStwPlayStop()
 {
+	// 시작/정지 토글
 	bool running = false;
 	{
 		CSingleLock lock(&m_stwStateCs, TRUE);
@@ -617,6 +667,7 @@ void CCalcStopwatchMFCDlg::OnStwPlayStop()
 
 void CCalcStopwatchMFCDlg::OnStwRecord()
 {
+	// 랩 기록
 	bool running = false;
 	{
 		CSingleLock lock(&m_stwStateCs, TRUE);
@@ -631,6 +682,7 @@ void CCalcStopwatchMFCDlg::OnStwRecord()
 
 void CCalcStopwatchMFCDlg::OnStwClear()
 {
+	// 초기화 (동작 중이면 정지 후 리셋)
 	bool running = false;
 	{
 		CSingleLock lock(&m_stwStateCs, TRUE);

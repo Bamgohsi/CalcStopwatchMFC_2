@@ -59,6 +59,9 @@ private:
 	Stopwatch  m_stw;
 
 	CListCtrl m_lapList;
+	CFont m_calcResultFont;
+	CFont m_stwResultFont;
+	CFont m_stwLabelFont;
 
 	// 스레드 동기화
 	CEvent m_calcEvent;
