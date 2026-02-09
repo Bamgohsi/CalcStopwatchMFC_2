@@ -3,16 +3,11 @@
 
 #pragma once
 
-#include "Calculator.h"
-#include "Stopwatch.h"
+#include "CalculatorWorker.h"
+#include "StopwatchWorker.h"
+#include "AppMessages.h"
 
 #include <deque>
-#include <afxmt.h>
-
-// 워커 스레드 -> UI 갱신 메시지
-#define WM_APP_CALC_UPDATED (WM_APP + 1)
-#define WM_APP_STW_UPDATED  (WM_APP + 2)
-#define WM_APP_STW_LAP      (WM_APP + 3)
 
 
 // CCalcStopwatchMFCDlg
@@ -55,57 +50,17 @@ protected:
 	afx_msg LRESULT OnStwLap(WPARAM, LPARAM);
 
 private:
-	Calculator m_calc;
-	Stopwatch  m_stw;
+	CalculatorWorker m_calcWorker;
+	StopwatchWorker  m_stwWorker;
 
 	CListCtrl m_lapList;
 	CFont m_calcResultFont;
 	CFont m_stwResultFont;
 	CFont m_stwLabelFont;
 
-	// 스레드 동기화
-	CEvent m_calcEvent;
-	CEvent m_stwEvent;
-
-	CCriticalSection m_calcQueueCs;
-	CCriticalSection m_calcStateCs;
-	CCriticalSection m_stwQueueCs;
-	CCriticalSection m_stwStateCs;
-
-	// UI -> 계산기 스레드 명령 큐
-	std::deque<Calculator::Command> m_calcQueue;
-
-	// 스톱워치 명령
-	enum class SwCmdKind
-	{
-		ToggleStartStop,
-		Lap,
-		Reset
-	};
-
-	struct SwCommand
-	{
-		SwCmdKind kind;
-		LONGLONG  stamp;
-	};
-
-	// UI -> 스톱워치 스레드 명령 큐
-	std::deque<SwCommand> m_stwQueue;
-
-	bool m_calcExit = false;
-	bool m_stwExit = false;
-
-	CWinThread* m_calcThread = nullptr;
-	CWinThread* m_stwThread = nullptr;
-
-	// 스레드 엔트리
-	static UINT AFX_CDECL CalcThreadProc(LPVOID pParam);
-	static UINT AFX_CDECL StwThreadProc(LPVOID pParam);
-
 	// 명령 큐 삽입
 	void EnqueueCalc(const Calculator::Command& cmd);
-	void EnqueueStw(const SwCommand& cmd);
-	void ApplyStwCommand(const SwCommand& cmd);
+	void EnqueueStw(const StopwatchWorker::Command& cmd);
 
 	// 화면 갱신
 	void UpdateCalcUI();
@@ -120,20 +75,10 @@ private:
 		CString  totalText;
 	};
 
-	// 스레드 간 전달용
-	struct LapPayload
-	{
-		int      lapNo = 0;
-		LONGLONG lapCounter = 0;
-		CString  lapText;
-		CString  totalText;
-	};
-
 	std::deque<LapRow> m_laps;
 	void RebuildLapList();
 
 	bool m_stwEverStarted = false;
-	bool m_stwResetPending = false;
 
 	// UI 캐시
 	CString m_lastCalcDisp;

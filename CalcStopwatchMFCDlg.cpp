@@ -19,8 +19,8 @@
 
 CCalcStopwatchMFCDlg::CCalcStopwatchMFCDlg(CWnd* pParent)
 	: CDialogEx(IDD_CALCSTOPWATCHMFC_DIALOG, pParent)
-	, m_calcEvent(FALSE, FALSE)
-	, m_stwEvent(FALSE, FALSE)
+	, m_calcWorker(this)
+	, m_stwWorker(this)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
@@ -61,7 +61,6 @@ BOOL CCalcStopwatchMFCDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);
 
 	m_stwEverStarted = false;
-	m_stwResetPending = false;
 	m_laps.clear();
 
 	m_lastCalcDisp.Empty();
@@ -107,14 +106,8 @@ BOOL CCalcStopwatchMFCDlg::OnInitDialog()
 	if (auto p = GetDlgItem(IDC_STWC_S)) p->SetFont(&m_stwLabelFont);
 
 	// 워커 스레드 시작 (계산기/스톱워치)
-	m_calcExit = false;
-	m_stwExit = false;
-
-	m_calcThread = AfxBeginThread(&CCalcStopwatchMFCDlg::CalcThreadProc, this);
-	if (m_calcThread) m_calcThread->m_bAutoDelete = FALSE;
-
-	m_stwThread = AfxBeginThread(&CCalcStopwatchMFCDlg::StwThreadProc, this);
-	if (m_stwThread) m_stwThread->m_bAutoDelete = FALSE;
+	m_calcWorker.Start();
+	m_stwWorker.Start();
 
 	return TRUE;
 }
@@ -196,28 +189,8 @@ BOOL CCalcStopwatchMFCDlg::PreTranslateMessage(MSG* pMsg)
 
 void CCalcStopwatchMFCDlg::OnDestroy()
 {
-	// 스레드 종료 플래그 + 이벤트 시그널
-	m_calcExit = true;
-	m_stwExit = true;
-
-	m_calcEvent.SetEvent();
-	m_stwEvent.SetEvent();
-
-	if (m_calcThread)
-	{
-		// 스레드 종료 대기 후 정리
-		::WaitForSingleObject(m_calcThread->m_hThread, INFINITE);
-		delete m_calcThread;
-		m_calcThread = nullptr;
-	}
-
-	if (m_stwThread)
-	{
-		// 스레드 종료 대기 후 정리
-		::WaitForSingleObject(m_stwThread->m_hThread, INFINITE);
-		delete m_stwThread;
-		m_stwThread = nullptr;
-	}
+	m_calcWorker.Stop();
+	m_stwWorker.Stop();
 
 	CDialogEx::OnDestroy();
 }
@@ -254,12 +227,8 @@ HCURSOR CCalcStopwatchMFCDlg::OnQueryDragIcon()
 void CCalcStopwatchMFCDlg::UpdateCalcUI()
 {
 	// 계산기 상태 읽기 (스레드 세이프)
-	CString disp, hist;
-	{
-		CSingleLock lock(&m_calcStateCs, TRUE);
-		disp = m_calc.GetDisplay();
-		hist = m_calc.GetRSHS();
-	}
+	CString disp = m_calcWorker.GetDisplay();
+	CString hist = m_calcWorker.GetHistory();
 
 	if (disp != m_lastCalcDisp)
 	{
@@ -285,15 +254,12 @@ void CCalcStopwatchMFCDlg::UpdateStopwatchUI()
 	bool resetPending = false;
 
 	// 현재 시각은 스레드 동기화 없이 조회
-	now = m_stw.GetNowText();
+	now = m_stwWorker.GetNowText();
 
-	{
-		// 경과 시간/상태는 동기화 후 조회
-		CSingleLock lock(&m_stwStateCs, TRUE);
-		running = m_stw.IsRunning();
-		resetPending = m_stwResetPending;
-		elapsed = resetPending ? _T("00:00:00.00") : m_stw.GetElapsedText();
-	}
+	// 경과 시간/상태는 동기화 후 조회
+	running = m_stwWorker.IsRunning();
+	resetPending = m_stwWorker.GetResetPending();
+	elapsed = resetPending ? _T("00:00:00.00") : m_stwWorker.GetElapsedText();
 
 	if (now != m_lastNow)
 	{
@@ -334,54 +300,7 @@ void CCalcStopwatchMFCDlg::UpdateStopwatchUI()
 // 계산기 명령 큐
 void CCalcStopwatchMFCDlg::EnqueueCalc(const Calculator::Command& cmd)
 {
-	// UI -> 계산기 스레드 명령 큐 삽입
-	{
-		CSingleLock lock(&m_calcQueueCs, TRUE);
-		m_calcQueue.push_back(cmd);
-	}
-	m_calcEvent.SetEvent();
-}
-
-// 계산기 워커 스레드
-UINT AFX_CDECL CCalcStopwatchMFCDlg::CalcThreadProc(LPVOID pParam)
-{
-	auto dlg = reinterpret_cast<CCalcStopwatchMFCDlg*>(pParam);
-
-	while (!dlg->m_calcExit)
-	{
-		// 명령 도착 대기
-		dlg->m_calcEvent.Lock();
-		if (dlg->m_calcExit) break;
-
-		for (;;)
-		{
-			Calculator::Command cmd{};
-			bool hasCmd = false;
-
-			{
-				CSingleLock lock(&dlg->m_calcQueueCs, TRUE);
-				if (!dlg->m_calcQueue.empty())
-				{
-					cmd = dlg->m_calcQueue.front();
-					dlg->m_calcQueue.pop_front();
-					hasCmd = true;
-				}
-			}
-
-			if (!hasCmd) break;
-
-			{
-				// 계산기 상태 변경은 단일 임계구역에서 처리
-				CSingleLock lock(&dlg->m_calcStateCs, TRUE);
-				dlg->m_calc.Execute(cmd);
-			}
-		}
-
-		// UI 갱신 요청
-		dlg->PostMessage(WM_APP_CALC_UPDATED, 0, 0);
-	}
-
-	return 0;
+	m_calcWorker.Enqueue(cmd);
 }
 
 LRESULT CCalcStopwatchMFCDlg::OnCalcUpdated(WPARAM, LPARAM)
@@ -449,130 +368,9 @@ void CCalcStopwatchMFCDlg::OnCalcButtonRange(UINT nID)
 }
 
 // 스톱워치 명령 큐
-void CCalcStopwatchMFCDlg::EnqueueStw(const SwCommand& cmd)
+void CCalcStopwatchMFCDlg::EnqueueStw(const StopwatchWorker::Command& cmd)
 {
-	// UI -> 스톱워치 스레드 명령 큐 삽입
-	{
-		CSingleLock lock(&m_stwQueueCs, TRUE);
-		m_stwQueue.push_back(cmd);
-	}
-	m_stwEvent.SetEvent();
-}
-
-void CCalcStopwatchMFCDlg::ApplyStwCommand(const SwCommand& cmd)
-{
-	// 스톱워치 상태 변경 (스레드 내부 처리)
-	switch (cmd.kind)
-	{
-	case SwCmdKind::ToggleStartStop:
-		m_stwResetPending = false;
-		m_stw.ToggleStartStopAt(cmd.stamp);
-		break;
-
-	case SwCmdKind::Reset:
-		m_stw.Reset();
-		m_stwResetPending = false;
-		break;
-
-	default:
-		break;
-	}
-}
-
-// 스톱워치 워커 스레드
-UINT AFX_CDECL CCalcStopwatchMFCDlg::StwThreadProc(LPVOID pParam)
-{
-	auto dlg = reinterpret_cast<CCalcStopwatchMFCDlg*>(pParam);
-	CString lastNow;
-
-	while (!dlg->m_stwExit)
-	{
-		// 짧은 주기로 이벤트 대기 (running 상태에서 주기적 갱신)
-		BOOL signaled = dlg->m_stwEvent.Lock(16);
-		if (dlg->m_stwExit) break;
-
-		bool processedAny = false;
-		bool postedLap = false;
-
-		if (signaled)
-		{
-			for (;;)
-			{
-				SwCommand cmd{};
-				bool hasCmd = false;
-
-				{
-					CSingleLock lock(&dlg->m_stwQueueCs, TRUE);
-					if (!dlg->m_stwQueue.empty())
-					{
-						cmd = dlg->m_stwQueue.front();
-						dlg->m_stwQueue.pop_front();
-						hasCmd = true;
-					}
-				}
-
-				if (!hasCmd) break;
-				processedAny = true;
-
-				if (cmd.kind == SwCmdKind::Lap)
-				{
-					// 랩 스냅샷 생성
-					Stopwatch::LapSnapshot snap;
-					{
-						CSingleLock lock(&dlg->m_stwStateCs, TRUE);
-						snap = dlg->m_stw.LapAt(cmd.stamp);
-					}
-
-					if (snap.lapNo > 0)
-					{
-						auto payload = new LapPayload;
-						payload->lapNo = snap.lapNo;
-						payload->lapCounter = snap.lapCounter;
-
-						{
-							// 랩 텍스트는 일관된 포맷으로 생성
-							CSingleLock lock(&dlg->m_stwStateCs, TRUE);
-							payload->lapText = dlg->m_stw.FormatCounter(snap.lapCounter);
-							payload->totalText = dlg->m_stw.FormatCounter(snap.totalCounter);
-						}
-
-						// UI 스레드로 전달
-						dlg->PostMessage(WM_APP_STW_LAP, (WPARAM)payload, 0);
-						postedLap = true;
-					}
-				}
-				else
-				{
-					// 시작/정지/리셋 등은 상태 변경만 수행
-					CSingleLock lock(&dlg->m_stwStateCs, TRUE);
-					dlg->ApplyStwCommand(cmd);
-				}
-			}
-		}
-
-		bool running = false;
-		{
-			CSingleLock lock(&dlg->m_stwStateCs, TRUE);
-			running = dlg->m_stw.IsRunning();
-		}
-
-		if (running || processedAny || postedLap)
-		{
-			// 경과 시간 갱신 필요
-			dlg->PostMessage(WM_APP_STW_UPDATED, 0, 0);
-			continue;
-		}
-
-		CString now = dlg->m_stw.GetNowText();
-		if (now != lastNow)
-		{
-			lastNow = now;
-			// 현재 시각이 변할 때만 갱신
-			dlg->PostMessage(WM_APP_STW_UPDATED, 0, 0);
-		}
-	}
-
-	return 0;
+	m_stwWorker.Enqueue(cmd);
 }
 
 LRESULT CCalcStopwatchMFCDlg::OnStwUpdated(WPARAM, LPARAM)
@@ -632,7 +430,7 @@ void CCalcStopwatchMFCDlg::RebuildLapList()
 LRESULT CCalcStopwatchMFCDlg::OnStwLap(WPARAM wParam, LPARAM)
 {
 	// 스레드에서 전달된 랩 정보 반영
-	auto payload = reinterpret_cast<LapPayload*>(wParam);
+	auto payload = reinterpret_cast<StopwatchWorker::LapPayload*>(wParam);
 	if (!payload) return 0;
 
 	LapRow row{};
@@ -651,53 +449,41 @@ LRESULT CCalcStopwatchMFCDlg::OnStwLap(WPARAM wParam, LPARAM)
 void CCalcStopwatchMFCDlg::OnStwPlayStop()
 {
 	// 시작/정지 토글
-	bool running = false;
-	{
-		CSingleLock lock(&m_stwStateCs, TRUE);
-		running = m_stw.IsRunning();
-		m_stwResetPending = false;
-	}
+	bool running = m_stwWorker.IsRunning();
+	m_stwWorker.SetResetPending(false);
 
 	if (!running) m_stwEverStarted = true;
 
 	LARGE_INTEGER c;
 	::QueryPerformanceCounter(&c);
-	EnqueueStw(SwCommand{ SwCmdKind::ToggleStartStop, c.QuadPart });
+	EnqueueStw(StopwatchWorker::Command{ StopwatchWorker::CommandKind::ToggleStartStop, c.QuadPart });
 }
 
 void CCalcStopwatchMFCDlg::OnStwRecord()
 {
 	// 랩 기록
-	bool running = false;
-	{
-		CSingleLock lock(&m_stwStateCs, TRUE);
-		running = m_stw.IsRunning();
-	}
+	bool running = m_stwWorker.IsRunning();
 	if (!running) return;
 
 	LARGE_INTEGER c;
 	::QueryPerformanceCounter(&c);
-	EnqueueStw(SwCommand{ SwCmdKind::Lap, c.QuadPart });
+	EnqueueStw(StopwatchWorker::Command{ StopwatchWorker::CommandKind::Lap, c.QuadPart });
 }
 
 void CCalcStopwatchMFCDlg::OnStwClear()
 {
 	// 초기화 (동작 중이면 정지 후 리셋)
-	bool running = false;
-	{
-		CSingleLock lock(&m_stwStateCs, TRUE);
-		running = m_stw.IsRunning();
-		m_stwResetPending = true;
-	}
+	bool running = m_stwWorker.IsRunning();
+	m_stwWorker.SetResetPending(true);
 
 	if (running)
 	{
 		LARGE_INTEGER c;
 		::QueryPerformanceCounter(&c);
-		EnqueueStw(SwCommand{ SwCmdKind::ToggleStartStop, c.QuadPart });
+		EnqueueStw(StopwatchWorker::Command{ StopwatchWorker::CommandKind::ToggleStartStop, c.QuadPart });
 	}
 
-	EnqueueStw(SwCommand{ SwCmdKind::Reset, 0 });
+	EnqueueStw(StopwatchWorker::Command{ StopwatchWorker::CommandKind::Reset, 0 });
 
 	m_laps.clear();
 	m_lapList.DeleteAllItems();
